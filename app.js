@@ -39,7 +39,8 @@
   // Ajustes del usuario (panel ⚙), guardados en la tablet
   var AJUSTES_DEFECTO = {
     ocultarTierra: true, altMax: 0, noche: 'auto', nocheDesde: 23, nocheHasta: 7, sonido: true,
-    vigilar: 'A388, A124, AN22, B748, B744, C17, C5M, A400, IL76, A3ST, BLCF, B52'
+    vigilar: 'A388, A124, AN22, B748, B744, C17, C5M, A400, IL76, A3ST, BLCF, B52',
+    unidades: 'metrico', idioma: 'auto'
   };
   var ajustes = (function () {
     var a = {}, k, guardado = {};
@@ -50,6 +51,115 @@
   function guardarAjustes() {
     try { localStorage.setItem('radar-ajustes', JSON.stringify(ajustes)); } catch (e) {}
   }
+
+  // ---------------- Idioma y formatos ----------------
+  var TEXTOS = {
+    es: {
+      enTierra: 'En tierra', enAp: ' en {ap}', deAp: ' de {ap}',
+      aterrizoAlerta: '🛬 {n} aterrizó{ap}', despegoAlerta: '🛫 {n} despegó{ap}',
+      senalPerdidaAlerta: 'Se perdió la señal de {n}', senalVolvio: '📡 Volvió la señal de {n}',
+      motivoMatricula: 'matrícula {r}', motivoAerolinea: 'aerolínea {a}',
+      e7500: 'interferencia ilícita', e7600: 'falla de radio', e7700: 'emergencia',
+      alertaEmerg: '⚠ {sq} {t} · {n} a {d} km', alertaVigilado: '★ {n} · {m} a {d} km',
+      live: 'Live', demo: 'Demo', error: 'Sin datos', cargando: 'Conectando', datosSimulados: 'datos simulados', via: 'vía {f}',
+      cercaDe: 'cerca de {x}', kmDeVos: 'a {d} km de vos',
+      sinSenal: 'Sin señal hace {s} s · posición estimada', fueraRadar: 'Fuera del radar · a {d} km',
+      aterrizoEstado: '🛬 Aterrizó{ap} a las {h}', enTierraEn: 'En tierra{ap}', despegoEstado: '🛫 Despegó{ap} a las {h}',
+      ampliar: 'Ampliar a {k} km', buscandoAviones: 'Buscando aviones…', noHayAviones: 'No hay aviones en este radio',
+      cerrar: 'Cerrar', dejarSeguir: 'Dejar de seguir',
+      senalPerdidaCard: 'Señal perdida a las {h} {lugar}', ultimoDato: 'Último dato: {x}. Si vuelve a aparecer, se sigue solo.',
+      tocaAvion: 'Tocá un avión para ver el detalle', tipoDesconocido: 'Tipo desconocido', sinConfirmar: '(sin confirmar)',
+      nivelado: 'Nivelado', altitud: 'Altitud', vel: 'Vel.', rumbo: 'Rumbo', dist: 'Dist.', matr: 'Matr.', squawk: 'Squawk',
+      rumboMay: 'RUMBO', senalPerdidaCorta: 'Señal perdida {h}', msCuadro: 'ms/cuadro',
+      sinUbicacion: 'Sin ubicación', ubicando: 'Ubicando…',
+      noEncontrado: 'No encontré {q} en el aire ahora', buscando: 'Buscando {q}…',
+      cardinales: ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'],
+      enRadar: 'En el radar', btnUbic: '📍 Ubicación', btnAj: '⚙ Ajustes', btnFull: '⛶ Completa', buscarPh: 'Buscar vuelo o matrícula',
+      ajTitulo: 'Ajustes', ajTierra: 'Ocultar aviones en tierra', ajAlt: 'Altitud máxima', altTodas: 'Todas',
+      alt10k_m: 'Hasta 3.000 m', alt5k_m: 'Hasta 1.500 m', alt10k_a: 'Hasta 10.000 ft', alt5k_a: 'Hasta 5.000 ft',
+      ajUnidades: 'Unidades', uniMetrico: 'Métricas (m, km/h)', uniAviacion: 'Aviación (pies, nudos)',
+      ajNoche: 'Modo noche', auto: 'Automático', nocheSi: 'Siempre', nocheNo: 'Nunca', ajHorario: 'Horario automático', hastaH: 'a',
+      ajSonido: 'Sonido en alertas', ajIdioma: 'Idioma',
+      ajVigilar: 'Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)',
+      ajNota: 'Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.',
+      listo: 'Listo', titulo: 'Radar de vuelos'
+    },
+    en: {
+      enTierra: 'On ground', enAp: ' at {ap}', deAp: ' from {ap}',
+      aterrizoAlerta: '🛬 {n} landed{ap}', despegoAlerta: '🛫 {n} took off{ap}',
+      senalPerdidaAlerta: 'Lost signal from {n}', senalVolvio: '📡 Signal back from {n}',
+      motivoMatricula: 'registration {r}', motivoAerolinea: 'airline {a}',
+      e7500: 'hijack', e7600: 'radio failure', e7700: 'emergency',
+      alertaEmerg: '⚠ {sq} {t} · {n} {d} km away', alertaVigilado: '★ {n} · {m} {d} km away',
+      live: 'Live', demo: 'Demo', error: 'No data', cargando: 'Connecting', datosSimulados: 'simulated data', via: 'via {f}',
+      cercaDe: 'near {x}', kmDeVos: '{d} km from you',
+      sinSenal: 'No signal for {s} s · estimated position', fueraRadar: 'Out of range · {d} km away',
+      aterrizoEstado: '🛬 Landed{ap} at {h}', enTierraEn: 'On ground{ap}', despegoEstado: '🛫 Took off{ap} at {h}',
+      ampliar: 'Zoom out to {k} km', buscandoAviones: 'Looking for aircraft…', noHayAviones: 'No aircraft in range',
+      cerrar: 'Close', dejarSeguir: 'Stop following',
+      senalPerdidaCard: 'Signal lost at {h} {lugar}', ultimoDato: 'Last data: {x}. If it shows up again, it will be followed automatically.',
+      tocaAvion: 'Tap an aircraft to see details', tipoDesconocido: 'Unknown type', sinConfirmar: '(unconfirmed)',
+      nivelado: 'Level', altitud: 'Altitude', vel: 'Speed', rumbo: 'Track', dist: 'Dist.', matr: 'Reg.', squawk: 'Squawk',
+      rumboMay: 'TRACK', senalPerdidaCorta: 'Signal lost {h}', msCuadro: 'ms/frame',
+      sinUbicacion: 'No location', ubicando: 'Locating…',
+      noEncontrado: "Couldn't find {q} in the air right now", buscando: 'Searching {q}…',
+      cardinales: ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'],
+      enRadar: 'In range', btnUbic: '📍 Location', btnAj: '⚙ Settings', btnFull: '⛶ Fullscreen', buscarPh: 'Search flight or registration',
+      ajTitulo: 'Settings', ajTierra: 'Hide aircraft on the ground', ajAlt: 'Max altitude', altTodas: 'All',
+      alt10k_m: 'Up to 3,000 m', alt5k_m: 'Up to 1,500 m', alt10k_a: 'Up to 10,000 ft', alt5k_a: 'Up to 5,000 ft',
+      ajUnidades: 'Units', uniMetrico: 'Metric (m, km/h)', uniAviacion: 'Aviation (ft, kt)',
+      ajNoche: 'Night mode', auto: 'Automatic', nocheSi: 'Always', nocheNo: 'Never', ajHorario: 'Automatic hours', hastaH: 'to',
+      ajSonido: 'Alert sound', ajIdioma: 'Language',
+      ajVigilar: 'Alert me when it shows up (types, registrations or airlines, comma separated)',
+      ajNota: 'Examples: A388 (type), N123AB (registration), KLM (airline). Emergencies (7700/7600/7500) are always alerted.',
+      listo: 'Done', titulo: 'Flight radar'
+    }
+  };
+  var LANG = 'es';
+  function resolverIdioma() {
+    var i = ajustes.idioma || 'auto';
+    if (i === 'auto') i = /^es/i.test(navigator.language || '') ? 'es' : 'en';
+    LANG = TEXTOS[i] ? i : 'es';
+  }
+  function T(k, v) {
+    var s = (TEXTOS[LANG] && TEXTOS[LANG][k] != null) ? TEXTOS[LANG][k] : TEXTOS.es[k];
+    if (v && typeof s === 'string') s = s.replace(/\{(\w+)\}/g, function (m, n) { return v[n] != null ? v[n] : ''; });
+    return s;
+  }
+  // Números: en español 12.345,6 · en inglés 12,345.6
+  function fmtNum(n, dec) {
+    dec = dec || 0;
+    var partes = Math.abs(n).toFixed(dec).split('.');
+    var miles = LANG === 'es' ? '.' : ',', decimal = LANG === 'es' ? ',' : '.';
+    var ent = partes[0].replace(/\B(?=(\d{3})+(?!\d))/g, miles);
+    return (n < 0 ? '-' : '') + ent + (partes[1] ? decimal + partes[1] : '');
+  }
+  function aviacion() { return ajustes.unidades === 'aviacion'; }
+  function velTexto(gs) { return gs == null ? '—' : aviacion() ? fmtNum(gs) + ' kt' : fmtNum(gs * 1.852) + ' km/h'; }
+  function vrTexto(vr) {
+    if (vr == null || Math.abs(vr) < 100) return T('nivelado');
+    var f = vr > 0 ? '↑ ' : '↓ ';
+    return f + (aviacion() ? fmtNum(Math.abs(vr)) + ' ft/min' : fmtNum(Math.abs(vr) * 0.00508, 1) + ' m/s');
+  }
+  // Altitud "secundaria" del detalle: la otra unidad
+  function altOtra(d) {
+    if (d.alt == null || d.gnd) return '';
+    return aviacion() ? fmtNum(d.alt * 0.3048) + ' m' : fmtNum(d.alt) + ' ft';
+  }
+  function aplicarIdioma() {
+    document.documentElement.lang = LANG;
+    document.title = T('titulo');
+    var els = document.querySelectorAll('[data-t]');
+    for (var i = 0; i < els.length; i++) {
+      var k = els[i].getAttribute('data-t');
+      if (k === 'alt10k' || k === 'alt5k') k += aviacion() ? '_a' : '_m';
+      els[i].textContent = T(k);
+    }
+    var ph = document.querySelectorAll('[data-tp]');
+    for (var j = 0; j < ph.length; j++) ph[j].placeholder = T(ph[j].getAttribute('data-tp'));
+  }
+
+  resolverIdioma();
 
   var g = leerGuardado();
   var cfg = {
@@ -67,18 +177,19 @@
     return { lat: lat + km * Math.cos(r) / KM_LAT, lon: lon + km * Math.sin(r) / kmLon(lat) };
   }
   function cardinal(g) {
-    var c = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+    var c = T('cardinales');
     return c[Math.round(((g % 360) + 360) % 360 / 45) % 8];
   }
 
   // ---------------- Formato ----------------
-  function miles(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+  function miles(n) { return fmtNum(n, 0); }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function nombre(d) { return d.cs || d.reg || d.hex.toUpperCase(); }
   function altTexto(d) {
-    if (d.gnd) return 'En tierra';
+    if (d.gnd) return T('enTierra');
     if (d.alt == null) return '—';
-    return miles(d.alt * 0.3048) + ' m';
+    if (aviacion()) return d.alt >= 18000 ? 'FL' + ('00' + Math.round(d.alt / 100)).slice(-3) : fmtNum(d.alt) + ' ft';
+    return fmtNum(d.alt * 0.3048) + ' m';
   }
   function esEmerg(d) { return d.sq === '7500' || d.sq === '7600' || d.sq === '7700'; }
   function colorAlt(d) {
@@ -130,10 +241,10 @@
       // Aterrizajes y despegues (se avisa solo del avión que estás siguiendo)
       if (a.d && !a.d.gnd && d.gnd) {
         a.aterrizo = { hora: ahora, ap: aeropuertoCercano(d.lat, d.lon) };
-        if (d.hex === seleccion) mostrarAlerta('🛬 ' + nombre(d) + ' aterrizó' + (a.aterrizo.ap ? ' en ' + a.aterrizo.ap : ''), false);
+        if (d.hex === seleccion) mostrarAlerta(T('aterrizoAlerta', { n: nombre(d), ap: a.aterrizo.ap ? T('enAp', { ap: a.aterrizo.ap }) : '' }), false);
       } else if (a.d && a.d.gnd && !d.gnd) {
         a.despego = { hora: ahora, ap: aeropuertoCercano(a.d.lat, a.d.lon) };
-        if (d.hex === seleccion) mostrarAlerta('🛫 ' + nombre(d) + ' despegó' + (a.despego.ap ? ' de ' + a.despego.ap : ''), false);
+        if (d.hex === seleccion) mostrarAlerta(T('despegoAlerta', { n: nombre(d), ap: a.despego.ap ? T('deAp', { ap: a.despego.ap }) : '' }), false);
       }
       a.d = d;
       a.t0 = ahora - (d.seen || 0) * 1000;
@@ -145,14 +256,14 @@
           // El que seguías desapareció: se guarda dónde se lo vio por última vez
           var p = posActual(aviones[h], ahora);
           perdido = { d: aviones[h].d, lat: p.lat, lon: p.lon, hora: aviones[h].t0 + EXTRAPOLAR_MAX_S * 1000 };
-          mostrarAlerta('Se perdió la señal de ' + nombre(aviones[h].d), false);
+          mostrarAlerta(T('senalPerdidaAlerta', { n: nombre(aviones[h].d) }), false);
         }
         delete aviones[h];
       }
     });
     if (seleccion && aviones[seleccion] && perdido) { // volvió a aparecer
       perdido = null;
-      mostrarAlerta('📡 Volvió la señal de ' + nombre(aviones[seleccion].d), false);
+      mostrarAlerta(T('senalVolvio', { n: nombre(aviones[seleccion].d) }), false);
     }
     rehacerLista();
     calcularPosiciones(ahora);
@@ -363,8 +474,8 @@
     for (var i = 0; i < l.length; i++) {
       var v = l[i];
       if (v === tipo) return d.desc || tipo;
-      if (reg && v.replace('-', '') === reg.replace('-', '')) return 'matrícula ' + reg;
-      if (v.length === 3 && /^[A-Z]{3}$/.test(v) && cs.indexOf(v) === 0 && /\d/.test(cs.charAt(3))) return 'aerolínea ' + v;
+      if (reg && v.replace('-', '') === reg.replace('-', '')) return T('motivoMatricula', { r: reg });
+      if (v.length === 3 && /^[A-Z]{3}$/.test(v) && cs.indexOf(v) === 0 && /\d/.test(cs.charAt(3))) return T('motivoAerolinea', { a: v });
       if (v === d.hex.toUpperCase()) return 'hex ' + v;
     }
     return '';
@@ -374,15 +485,14 @@
       var a = lista[i], d = a.d;
       if (!a.dentro || alertados[d.hex]) continue;
       if (esEmerg(d)) {
-        var tipoEm = { '7500': 'interferencia ilícita', '7600': 'falla de radio', '7700': 'emergencia' }[d.sq];
         alertados[d.hex] = 'emerg';
-        mostrarAlerta('⚠ ' + d.sq + ' ' + tipoEm + ' · ' + nombre(d) + ' a ' + a.dist.toFixed(0) + ' km', true);
+        mostrarAlerta(T('alertaEmerg', { sq: d.sq, t: T('e' + d.sq), n: nombre(d), d: fmtNum(a.dist) }), true);
         continue;
       }
       var m = motivoVigilancia(d);
       if (m) {
         alertados[d.hex] = 'vigilado';
-        mostrarAlerta('★ ' + nombre(d) + ' · ' + m + ' a ' + a.dist.toFixed(0) + ' km', false);
+        mostrarAlerta(T('alertaVigilado', { n: nombre(d), m: m, d: fmtNum(a.dist) }), false);
       }
     }
   }
@@ -506,7 +616,7 @@
     x.textAlign = 'left'; x.textBaseline = 'middle';
     for (k = 1; k <= 4; k++) {
       var v = cfg.km * k / 4;
-      x.fillText((v % 1 ? v.toFixed(1) : v) + ' km', CX + R * k / 4 * Math.cos(rad(160)) + 4, CY + R * k / 4 * Math.sin(rad(160)));
+      x.fillText(fmtNum(v, v % 1 ? 1 : 0) + ' km', CX + R * k / 4 * Math.cos(rad(160)) + 4, CY + R * k / 4 * Math.sin(rad(160)));
     }
 
     dibujarMapa(x);
@@ -605,7 +715,8 @@
     x.strokeStyle = 'rgba(120,235,220,.95)'; x.lineWidth = 2;
     x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.stroke();
     x.font = 'bold 16px Roboto, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    [['N', 0], ['E', 90], ['S', 180], ['O', 270]].forEach(function (c) {
+    var cards = T('cardinales');
+    [[cards[0], 0], [cards[2], 90], [cards[4], 180], [cards[6], 270]].forEach(function (c) {
       var dc = REDONDO ? R - 16 : R + 12; // en pantalla redonda van del lado de adentro
       var px = CX + dc * Math.cos(rad(c[1])), py = CY + dc * Math.sin(rad(c[1]));
       x.fillStyle = '#000'; x.beginPath(); x.arc(px, py, 11, 0, TAU); x.fill();
@@ -661,7 +772,9 @@
     x.textBaseline = 'middle';
     x.font = (sel ? 'bold 14px' : 'bold 12px') + ' Roboto, sans-serif';
     x.fillStyle = sel ? '#ffd54a' : '#e8fffb'; x.fillText(t1, 0, 9);
+    var w1 = x.measureText(t1).width;
     x.font = '11px Roboto, sans-serif'; x.fillStyle = col; x.fillText(t2, 0, 23);
+    a.etqW = Math.min(120, Math.max(w1, x.measureText(t2).width)); // ancho real, para evitar choques
     a.etqClave = clave;
     return (a.etq = l.c);
   }
@@ -793,8 +906,9 @@
     var conEtiqueta = visibles <= 30 && !nocheActiva;
 
     ctx.setTransform(D, 0, 0, D, 0, 0);
+    ocupados.length = 0;
 
-    // Aviones y etiquetas
+    // Aviones (los íconos; las etiquetas van en una pasada aparte)
     var sel = null;
     for (i = 0; i < lista.length; i++) {
       a = lista[i];
@@ -836,10 +950,13 @@
           ctx.globalAlpha = 0.75; ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]);
           ctx.beginPath(); ctx.moveTo(sel.px, sel.py); ctx.lineTo(dst.x, dst.y); ctx.stroke();
           ctx.setLineDash([]);
-          var et = etiquetaDestino(rt.d + ' · ' + miles(dst.dist) + ' km');
+          var et = etiquetaDestino(rt.d + ' · ' + fmtNum(dst.dist) + ' km');
           // la etiqueta queda adentro del círculo, cerca del extremo de la línea
-          var ex = Math.min(Math.max(dst.x - (etqDestino.w || 80) / 2, CX - R + 6), CX + R - (etqDestino.w || 80) - 6);
-          var ey = Math.min(Math.max(dst.y - (dst.dentro ? 28 : 11), 8), H - 30);
+          // (si el destino está en el radar, va debajo del aeropuerto para no tapar su nombre)
+          var ew = etqDestino.w || 80;
+          var ex = Math.min(Math.max(dst.x - ew / 2, CX - R + 6), CX + R - ew - 6);
+          var ey = Math.min(Math.max(dst.dentro ? dst.y + 10 : dst.y - 11, 8), H - 30);
+          ocupados.push([ex, ey, ew, 20]);
           ctx.globalAlpha = 1;
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.drawImage(et, Math.round(ex * D), Math.round(ey * D));
@@ -847,6 +964,7 @@
         }
       }
       pintarAvion(sel, true, ang, viejo, true, D);
+      pintarEtiquetas(sel, conEtiqueta, D);
     } else if (perdido && perdido.d.hex === seleccion) {
       // Última posición conocida del avión que se perdió: círculo punteado gris
       var pp = aXY(perdido.lat, perdido.lon);
@@ -858,6 +976,7 @@
         ctx.setLineDash([]);
       }
     }
+    if (!sel) pintarEtiquetas(null, conEtiqueta, D);
     ctx.globalAlpha = 1;
   }
 
@@ -870,10 +989,34 @@
     var r = (d.trk || 0) * Math.PI / 180, co = Math.cos(r), si = Math.sin(r);
     ctx.setTransform(D * co, D * si, -D * si, D * co, a.px * D, a.py * D);
     ctx.drawImage(spr, -16, -16, 32, 32);
-    if (conEtiqueta || sel) {
-      var et = etiqueta(a, sel);
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.drawImage(et, Math.round((a.px + 13) * D), Math.round((a.py - 15) * D));
+  }
+
+  // Etiquetas sin encimarse: primero el seleccionado, después los más cercanos al centro.
+  // Si una choca con otra ya puesta, se omite (el avión se sigue viendo).
+  var candidatos = [], ocupados = [];
+  function choca(x, y, w, h) {
+    for (var i = 0; i < ocupados.length; i++) {
+      var o = ocupados[i];
+      if (x < o[0] + o[2] && x + w > o[0] && y < o[1] + o[3] && y + h > o[1]) return true;
+    }
+    return false;
+  }
+  function pintarEtiquetas(sel, conEtiqueta, D) {
+    candidatos.length = 0;
+    if (conEtiqueta) {
+      for (var i = 0; i < lista.length; i++) if (lista[i].mostrar && lista[i] !== sel) candidatos.push(lista[i]);
+      candidatos.sort(function (a, b) { return a.dist - b.dist; });
+    }
+    if (sel) candidatos.unshift(sel);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (var j = 0; j < candidatos.length; j++) {
+      var a = candidatos[j], esSel = a === sel;
+      var et = etiqueta(a, esSel);
+      var x = a.px + 13, y = a.py - 15, w = a.etqW || 60, h = 30;
+      if (!esSel && choca(x, y, w, h)) continue;
+      ocupados.push([x, y, w, h]);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(et, Math.round(x * D), Math.round(y * D));
     }
   }
 
@@ -887,7 +1030,7 @@
       fpsMs += performance.now() - t0;
       fpsCuadros++;
       if (t - fpsDesde >= 1000) {
-        $('fuente').textContent = fpsCuadros + ' fps · ' + (fpsMs / fpsCuadros).toFixed(1) + ' ms/cuadro';
+        $('fuente').textContent = fpsCuadros + ' fps · ' + fmtNum(fpsMs / fpsCuadros, 1) + ' ' + T('msCuadro');
         fpsCuadros = 0; fpsMs = 0; fpsDesde = t;
       }
     }
@@ -898,10 +1041,9 @@
 
   function actualizarEstado() {
     var p = $('pill');
-    var textos = { live: 'Live', demo: 'Demo', error: 'Sin datos', cargando: 'Conectando' };
     p.className = 'pill ' + estado;
-    p.textContent = textos[estado] || estado;
-    $('fuente').textContent = DEMO ? 'datos simulados' : (fuente ? 'vía ' + fuente : '');
+    p.textContent = T(estado);
+    $('fuente').textContent = DEMO ? T('datosSimulados') : (fuente ? T('via', { f: fuente }) : '');
     var re = $('r-estado');
     re.className = p.className;
     re.textContent = p.textContent;
@@ -928,7 +1070,7 @@
     var mejor = null, mejorD = 40;
     GEO.ci.forEach(function (c) { var d = distKm(lat, lon, c[1], c[2]); if (d < mejorD) { mejorD = d; mejor = c[0]; } });
     var ap = aeropuertoCercano(lat, lon);
-    return ap ? 'cerca de ' + ap : mejor ? 'cerca de ' + mejor : 'a ' + distKm(cfg.lat, cfg.lon, lat, lon).toFixed(0) + ' km de vos';
+    return ap ? T('cercaDe', { x: ap }) : mejor ? T('cercaDe', { x: mejor }) : T('kmDeVos', { d: fmtNum(distKm(cfg.lat, cfg.lon, lat, lon)) });
   }
   function horaCorta(ms) {
     var f = new Date(ms);
@@ -937,25 +1079,25 @@
   // Una línea de estado para el avión seguido: { texto, clase, ampliar (km) }
   function estadoSeguimiento(a, ahora) {
     var d = a.d, edad = (ahora - a.t0) / 1000;
-    if (edad > SIN_SENAL_S) return { texto: 'Sin señal hace ' + Math.round(edad) + ' s · posición estimada', clase: 'aviso' };
+    if (edad > SIN_SENAL_S) return { texto: T('sinSenal', { s: Math.round(edad) }), clase: 'aviso' };
     if (!a.dentro) {
       var siguiente = RANGOS.filter(function (r) { return r >= a.dist * 1.05; })[0];
-      return { texto: 'Fuera del radar · a ' + a.dist.toFixed(0) + ' km', clase: 'aviso', ampliar: siguiente };
+      return { texto: T('fueraRadar', { d: fmtNum(a.dist) }), clase: 'aviso', ampliar: siguiente };
     }
     if (d.gnd) {
       if (a.aterrizo && ahora - a.aterrizo.hora < 15 * 60000)
-        return { texto: '🛬 Aterrizó' + (a.aterrizo.ap ? ' en ' + a.aterrizo.ap : '') + ' a las ' + horaCorta(a.aterrizo.hora), clase: 'ok' };
+        return { texto: T('aterrizoEstado', { ap: a.aterrizo.ap ? T('enAp', { ap: a.aterrizo.ap }) : '', h: horaCorta(a.aterrizo.hora) }), clase: 'ok' };
       var ap = aeropuertoCercano(d.lat, d.lon);
-      return { texto: 'En tierra' + (ap ? ' en ' + ap : ''), clase: 'ok' };
+      return { texto: T('enTierraEn', { ap: ap ? T('enAp', { ap: ap }) : '' }), clase: 'ok' };
     }
     if (a.despego && ahora - a.despego.hora < 10 * 60000)
-      return { texto: '🛫 Despegó' + (a.despego.ap ? ' de ' + a.despego.ap : '') + ' a las ' + horaCorta(a.despego.hora), clase: 'ok' };
+      return { texto: T('despegoEstado', { ap: a.despego.ap ? T('deAp', { ap: a.despego.ap }) : '', h: horaCorta(a.despego.hora) }), clase: 'ok' };
     return null;
   }
   function htmlEstado(e) {
     if (!e) return '';
     return '<div class="estado-seg ' + e.clase + '">' + esc(e.texto) +
-      (e.ampliar ? ' <button class="ampliar" data-km="' + e.ampliar + '">Ampliar a ' + e.ampliar + ' km</button>' : '') + '</div>';
+      (e.ampliar ? ' <button class="ampliar" data-km="' + e.ampliar + '">' + esc(T('ampliar', { k: e.ampliar })) + '</button>' : '') + '</div>';
   }
   function cambiarAlcance(km) {
     cfg.km = km;
@@ -979,8 +1121,8 @@
         '<span class="izq"><span class="cs' + (esEmerg(d) ? ' emerg' : '') + '">' + esc(nombre(d)) + '</span>' +
         (rutaCorta(d) ? '<span class="ruta">' + esc(rutaCorta(d)) + '</span>' : '<span class="t">' + esc(d.tipo || '') + '</span>') + '</span>' +
         '<span class="num a">' + altTexto(d) + '</span>' +
-        '<span class="num d">' + a.dist.toFixed(1) + ' km</span></li>';
-    }).join('') : '<li class="vacio">' + (estado === 'cargando' ? 'Buscando aviones…' : 'No hay aviones en este radio') + '</li>');
+        '<span class="num d">' + fmtNum(a.dist, 1) + ' km</span></li>';
+    }).join('') : '<li class="vacio">' + T(estado === 'cargando' ? 'buscandoAviones' : 'noHayAviones') + '</li>');
 
     var a = seleccion && aviones[seleccion];
     var ahora = Date.now();
@@ -989,41 +1131,40 @@
       var pd = perdido.d;
       poner('detalle', 'className', 'detalle perdido');
       poner('detalle', 'innerHTML',
-        '<button class="cerrar" title="Cerrar">✕</button>' +
+        '<button class="cerrar" title="' + T('cerrar') + '">✕</button>' +
         '<div class="cs">' + esc(nombre(pd)) + '</div>' +
         (rutaCorta(pd) ? '<div class="ruta">' + esc(rutaCorta(pd).replace('→', ' → ')) + '</div>' : '') +
-        '<div class="estado-seg aviso">Señal perdida a las ' + horaCorta(perdido.hora) + ' ' + esc(lugarCercano(perdido.lat, perdido.lon)) + '</div>' +
-        '<div class="tipo">Último dato: ' + altTexto(pd) + (pd.gs != null ? ' · ' + miles(pd.gs * 1.852) + ' km/h' : '') +
-        '. Si vuelve a aparecer, se sigue solo.</div>');
+        '<div class="estado-seg aviso">' + esc(T('senalPerdidaCard', { h: horaCorta(perdido.hora), lugar: lugarCercano(perdido.lat, perdido.lon) })) + '</div>' +
+        '<div class="tipo">' + esc(T('ultimoDato', { x: altTexto(pd) + (pd.gs != null ? ' · ' + velTexto(pd.gs) : '') })) + '</div>');
       return;
     }
     if (!a) {
       poner('detalle', 'className', 'detalle vacio');
-      poner('detalle', 'innerHTML', 'Tocá un avión para ver el detalle');
+      poner('detalle', 'innerHTML', T('tocaAvion'));
       return;
     }
     var est = estadoSeguimiento(a, ahora);
     var d = a.d;
-    var tipo = d.desc ? d.desc + (d.tipo ? ' (' + d.tipo + ')' : '') : (d.tipo || 'Tipo desconocido');
+    var tipo = d.desc ? d.desc + (d.tipo ? ' (' + d.tipo + ')' : '') : (d.tipo || T('tipoDesconocido'));
     var r = d.cs && rutas[d.cs];
     var rutaHtml = r ? '<div class="ruta">' + esc(r.o) + (r.on ? ' <small>' + esc(r.on) + '</small>' : '') + ' → ' + esc(r.d) +
-      (r.dn ? ' <small>' + esc(r.dn) + '</small>' : '') + (r.ok ? '' : ' <small>(sin confirmar)</small>') + '</div>' : '';
-    var vr = d.vr == null || Math.abs(d.vr) < 100 ? 'Nivelado' : (d.vr > 0 ? '↑ ' : '↓ ') + miles(Math.abs(d.vr)) + ' ft/min';
+      (r.dn ? ' <small>' + esc(r.dn) + '</small>' : '') + (r.ok ? '' : ' <small>' + T('sinConfirmar') + '</small>') + '</div>' : '';
+    var vr = vrTexto(d.vr);
     poner('detalle', 'className', 'detalle');
     poner('detalle', 'innerHTML',
-      '<button class="cerrar" title="Dejar de seguir">✕</button>' +
+      '<button class="cerrar" title="' + T('dejarSeguir') + '">✕</button>' +
       '<div class="cs' + (esEmerg(d) ? ' emerg' : '') + '">' + esc(nombre(d)) + '</div>' +
       rutaHtml + htmlEstado(est) +
       '<div class="tipo">' + esc(tipo) + '</div>' +
       '<div class="grid">' +
-      '<span>Altitud <b>' + altTexto(d) + '</b></span>' +
-      '<span>' + (d.alt != null && !d.gnd ? '<b>' + miles(d.alt) + ' ft</b>' : '') + '</span>' +
-      '<span>Vel. <b>' + (d.gs != null ? miles(d.gs * 1.852) + ' km/h' : '—') + '</b></span>' +
-      '<span>Rumbo <b>' + (d.trk != null ? Math.round(d.trk) + '° ' + cardinal(d.trk) : '—') + '</b></span>' +
-      '<span>Dist. <b>' + a.dist.toFixed(1) + ' km ' + cardinal(a.rumboDesde) + '</b></span>' +
+      '<span>' + T('altitud') + ' <b>' + altTexto(d) + '</b></span>' +
+      '<span><b>' + altOtra(d) + '</b></span>' +
+      '<span>' + T('vel') + ' <b>' + velTexto(d.gs) + '</b></span>' +
+      '<span>' + T('rumbo') + ' <b>' + (d.trk != null ? Math.round(d.trk) + '° ' + cardinal(d.trk) : '—') + '</b></span>' +
+      '<span>' + T('dist') + ' <b>' + fmtNum(a.dist, 1) + ' km ' + cardinal(a.rumboDesde) + '</b></span>' +
       '<span><b>' + vr + '</b></span>' +
-      '<span>Matr. <b>' + esc(d.reg || '—') + '</b></span>' +
-      '<span>Squawk <b' + (esEmerg(d) ? ' class="emerg"' : '') + '>' + esc(d.sq || '—') + '</b></span>' +
+      '<span>' + T('matr') + ' <b>' + esc(d.reg || '—') + '</b></span>' +
+      '<span>' + T('squawk') + ' <b' + (esEmerg(d) ? ' class="emerg"' : '') + '>' + esc(d.sq || '—') + '</b></span>' +
       '</div>');
   }
 
@@ -1032,7 +1173,7 @@
     if (!REDONDO) return;
     if (!a && perdido && perdido.d.hex === seleccion) {
       poner('r-detalle', 'className', 'r-detalle perdido');
-      poner('r-detalle', 'innerHTML', '<b>' + esc(nombre(perdido.d)) + '</b><br>Señal perdida ' + horaCorta(perdido.hora) + '<br>' +
+      poner('r-detalle', 'innerHTML', '<b>' + esc(nombre(perdido.d)) + '</b><br>' + esc(T('senalPerdidaCorta', { h: horaCorta(perdido.hora) })) + '<br>' +
         esc(lugarCercano(perdido.lat, perdido.lon)));
       return;
     }
@@ -1045,8 +1186,8 @@
       '<b>' + esc(nombre(d)) + '</b>' + (ruta ? ' <span class="ruta">' + esc(ruta) + '</span>' : '') + '<br>' +
       (est ? '<span class="estado-seg ' + est.clase + '">' + esc(est.texto) + '</span><br>' : '') +
       esc(d.desc || d.tipo || '') + '<br>' +
-      altTexto(d) + (d.trk != null ? ' · RUMBO ' + Math.round(d.trk) + '°' : '') + '<br>' +
-      (d.gs != null ? miles(d.gs * 1.852) + ' km/h · ' : '') + a.dist.toFixed(1) + ' km');
+      altTexto(d) + (d.trk != null ? ' · ' + T('rumboMay') + ' ' + Math.round(d.trk) + '°' : '') + '<br>' +
+      (d.gs != null ? velTexto(d.gs) + ' · ' : '') + fmtNum(a.dist, 1) + ' km');
   }
 
   // Solo escribe en el DOM si el valor cambió (evita relayouts que cortan la animación)
@@ -1106,7 +1247,7 @@
 
   function ubicar() {
     if (!navigator.geolocation) return;
-    $('pill').textContent = 'Ubicando…';
+    $('pill').textContent = T('ubicando');
     navigator.geolocation.getCurrentPosition(function (p) {
       cfg.lat = p.coords.latitude;
       cfg.lon = p.coords.longitude;
@@ -1119,7 +1260,7 @@
       if (DEMO) demoTick(); else pedir();
       actualizarEstado();
     }, function () {
-      $('pill').textContent = 'Sin ubicación';
+      $('pill').textContent = T('sinUbicacion');
       setTimeout(actualizarEstado, 2500);
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
   }
@@ -1156,6 +1297,8 @@
     $('aj-hasta').value = ajustes.nocheHasta;
     $('aj-sonido').checked = !!ajustes.sonido;
     $('aj-vigilar').value = ajustes.vigilar;
+    $('aj-unidades').value = ajustes.unidades;
+    $('aj-idioma').value = ajustes.idioma;
     $('ajustes').className = 'ajustes';
   }
   function leerAjustes() {
@@ -1166,7 +1309,15 @@
     ajustes.nocheHasta = Math.min(23, Math.max(0, parseInt($('aj-hasta').value, 10) || 0));
     ajustes.sonido = $('aj-sonido').checked;
     ajustes.vigilar = $('aj-vigilar').value;
+    ajustes.unidades = $('aj-unidades').value;
+    ajustes.idioma = $('aj-idioma').value;
     guardarAjustes();
+    // idioma y unidades cambian textos del panel y del fondo
+    resolverIdioma();
+    aplicarIdioma();
+    construirFondo();
+    construirBorde();
+    actualizarEstado();
     calcularPosiciones(Date.now());
     calcularEstelas();
     aplicarNoche();
@@ -1210,7 +1361,43 @@
       .catch(function () {});
   }
 
+  // ---------------- Búsqueda de vuelos ----------------
+  // Primero entre los aviones que ya están en el radar; si no, se pregunta al proxy
+  // (por callsign o matrícula, en todo el mundo). El encontrado queda seleccionado
+  // y se sigue aunque esté fuera del radar.
+  function normalizarTexto(s) { return String(s || '').toUpperCase().replace(/[\s-]/g, ''); }
+  function buscarVuelo(q) {
+    var n = normalizarTexto(q);
+    if (n.length < 3) return;
+    for (var i = 0; i < lista.length; i++) {
+      var d = lista[i].d;
+      if (normalizarTexto(d.cs) === n || normalizarTexto(d.reg) === n || d.hex.toUpperCase() === n) {
+        $('buscar-q').value = '';
+        seleccionar(d.hex);
+        return;
+      }
+    }
+    if (DEMO) { mostrarAlerta(T('noEncontrado', { q: q.toUpperCase() }), false); return; }
+    mostrarAlerta(T('buscando', { q: q.toUpperCase() }), false);
+    traerJson('/api/buscar?q=' + encodeURIComponent(n), 12000)
+      .then(function (j) {
+        var encontrados = (j && j.aviones) || [];
+        if (!encontrados.length) { mostrarAlerta(T('noEncontrado', { q: q.toUpperCase() }), false); return; }
+        integrar(encontrados, Date.now());
+        $('buscar-q').value = '';
+        seleccionar(encontrados[0].hex);
+        $('alerta').className = 'alerta oculto';
+      })
+      .catch(function () { mostrarAlerta(T('noEncontrado', { q: q.toUpperCase() }), false); });
+  }
+  $('buscar').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('buscar-q').blur(); // cierra el teclado
+    buscarVuelo($('buscar-q').value);
+  });
+
   // ---------------- Arranque ----------------
+  aplicarIdioma();
   redimensionar();
   cargarMapa();
   revisarVersion();

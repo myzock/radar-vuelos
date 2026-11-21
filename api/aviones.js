@@ -1,12 +1,11 @@
 // Proxy de datos ADS-B para Radar de vuelos.
-// Prueba varias fuentes públicas (todas usan el formato "readsb")
+// Prueba varias fuentes públicas (todas usan el formato "readsb").
+// airplanes.live no está porque rechaza las consultas que salen de Vercel (HTTP 403).
 // y devuelve una lista normalizada y liviana para la tablet.
 
 const FUENTES = [
   { nombre: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`,
     hex: (h) => `https://opendata.adsb.fi/api/v2/hex/${h}` },
-  { nombre: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}`,
-    hex: (h) => `https://api.airplanes.live/v2/hex/${h}` },
   { nombre: 'adsb.lol', url: (lat, lon, nm) => `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${nm}`,
     hex: (h) => `https://api.adsb.lol/v2/hex/${h}` },
 ];
@@ -57,7 +56,7 @@ function normalizar(x) {
   };
 }
 
-module.exports = async (req, res) => {
+const handler = async (req, res) => {
   const q = req.query || {};
   const lat = Number(q.lat);
   const lon = Number(q.lon);
@@ -112,3 +111,6 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.status(502).json({ error: 'Ninguna fuente respondió', detalle: errores });
 };
+
+module.exports = handler;
+module.exports.normalizar = normalizar;

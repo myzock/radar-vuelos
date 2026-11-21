@@ -25,6 +25,10 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 - **Alertas** visuales y sonoras ante squawk de emergencia (7700/7600/7500) o cuando aparece algo de tu lista: tipos (A388, B748…), matrículas o aerolíneas
 - **Filtros:** ocultar aviones en tierra o mostrar solo hasta cierta altitud
 - **Modo noche** automático (23 a 7 por defecto): baja el brillo al 30% y oculta etiquetas
+- **Buscar un vuelo** por callsign o matrícula (`ARG1302`, `LV-FNI` o `lvfni`): lo encuentra en cualquier parte del mundo y lo sigue
+- Etiquetas que no se pisan: con muchos aviones juntos, se priorizan el seleccionado y los más cercanos
+- **Unidades:** métricas (m, km/h) o de aviación (pies/FL, nudos)
+- **Español e inglés**, según el idioma del dispositivo o elegido en ajustes
 - Todo se configura desde **⚙ Ajustes** y queda guardado en la tablet
 - La primera vez pide la ubicación del dispositivo; si no la dan, arranca en el Obelisco
 - **Se actualiza sola:** cada 5 minutos se fija si hay una versión nueva publicada y recarga la página
@@ -36,12 +40,13 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 ## Cómo funciona
 
 ```
-Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.fi / airplanes.live / adsb.lol
+Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.fi / adsb.lol
                               →  /api/rutas                      →  adsb.lol / adsbdb.com (rutas)
+                              →  /api/buscar                     →  adsb.fi / adsb.lol (por callsign o matrícula)
 ```
 
 - **Frontend:** HTML + CSS + JavaScript sin frameworks ni build, compatible con navegadores viejos (probado para Chrome 106 / Android 6).
-- **Proxy (`api/aviones.js`):** función serverless que consulta las APIs públicas en orden, con respaldo si una falla, normaliza la respuesta y la cachea unos segundos en el CDN para no pasarse de los límites de uso.
+- **Proxy (`api/aviones.js`):** función serverless que consulta las APIs públicas en orden (airplanes.live quedó afuera porque rechaza las consultas desde Vercel), con respaldo si una falla, normaliza la respuesta y la cachea unos segundos en el CDN para no pasarse de los límites de uso.
 - **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign, con [adsbdb.com](https://www.adsbdb.com) de respaldo; se cachean una hora.
 - **Mapa (`mapa/`):** 5.259 mosaicos estáticos de 2°×2° (11 MB en total). La app baja solo los de su zona (unos 12) y arma el fondo una vez. Se regeneran con `herramientas/generar_mapa.py` a partir de Natural Earth 1:10m y OurAirports.
 - **Versión (`api/version.js`):** devuelve el commit publicado, para la actualización automática.

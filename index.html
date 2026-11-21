@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
+<!-- Los textos con data-t se traducen al cargar (ver TEXTOS en app.js) -->
 <div id="app">
   <div id="zona-radar">
     <canvas id="capa-fondo" class="capa"></canvas>
@@ -29,18 +30,22 @@
     <header>
       <div id="reloj">--:--</div>
       <div class="estado">
-        <span id="pill" class="pill cargando">Conectando</span>
+        <span id="pill" class="pill cargando" data-t="cargando">Conectando</span>
         <span id="fuente"></span>
       </div>
     </header>
     <div id="rangos" class="rangos"></div>
-    <section id="detalle" class="detalle vacio">Tocá un avión para ver el detalle</section>
-    <div class="lista-titulo"><span>En el radar</span><span id="contador">0</span></div>
+    <section id="detalle" class="detalle vacio" data-t="tocaAvion">Tocá un avión para ver el detalle</section>
+    <form id="buscar" class="buscar" autocomplete="off">
+      <input type="search" id="buscar-q" data-tp="buscarPh" placeholder="Buscar vuelo o matrícula" spellcheck="false" autocapitalize="characters">
+      <button type="submit">🔍</button>
+    </form>
+    <div class="lista-titulo"><span data-t="enRadar">En el radar</span><span id="contador">0</span></div>
     <ul id="lista"></ul>
     <footer>
-      <button id="btn-ubic">📍 Ubicación</button>
-      <button id="btn-aj">⚙ Ajustes</button>
-      <button id="btn-full">⛶ Completa</button>
+      <button id="btn-ubic" data-t="btnUbic">📍 Ubicación</button>
+      <button id="btn-aj" data-t="btnAj">⚙ Ajustes</button>
+      <button id="btn-full" data-t="btnFull">⛶ Completa</button>
     </footer>
   </aside>
 </div>
@@ -48,23 +53,29 @@
 <div id="noche"></div>
 <div id="ajustes" class="ajustes oculto">
   <div class="caja">
-    <h2>Ajustes</h2>
-    <label class="fila"><input type="checkbox" id="aj-tierra"> Ocultar aviones en tierra</label>
-    <label class="fila">Altitud máxima
-      <select id="aj-alt"><option value="0">Todas</option><option value="10000">Hasta 3.000 m</option><option value="5000">Hasta 1.500 m</option></select>
+    <h2 data-t="ajTitulo">Ajustes</h2>
+    <label class="fila"><input type="checkbox" id="aj-tierra"> <span data-t="ajTierra">Ocultar aviones en tierra</span></label>
+    <label class="fila"><span data-t="ajAlt">Altitud máxima</span>
+      <select id="aj-alt"><option value="0" data-t="altTodas">Todas</option><option value="10000" data-t="alt10k">Hasta 3.000 m</option><option value="5000" data-t="alt5k">Hasta 1.500 m</option></select>
     </label>
-    <label class="fila">Modo noche
-      <select id="aj-noche"><option value="auto">Automático</option><option value="si">Siempre</option><option value="no">Nunca</option></select>
+    <label class="fila"><span data-t="ajUnidades">Unidades</span>
+      <select id="aj-unidades"><option value="metrico" data-t="uniMetrico">Métricas (m, km/h)</option><option value="aviacion" data-t="uniAviacion">Aviación (pies, nudos)</option></select>
     </label>
-    <label class="fila">Horario automático
-      <span><input type="number" id="aj-desde" min="0" max="23"> a <input type="number" id="aj-hasta" min="0" max="23"> h</span>
+    <label class="fila"><span data-t="ajNoche">Modo noche</span>
+      <select id="aj-noche"><option value="auto" data-t="auto">Automático</option><option value="si" data-t="nocheSi">Siempre</option><option value="no" data-t="nocheNo">Nunca</option></select>
     </label>
-    <label class="fila"><input type="checkbox" id="aj-sonido"> Sonido en alertas</label>
-    <label class="col">Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)
+    <label class="fila"><span data-t="ajHorario">Horario automático</span>
+      <span><input type="number" id="aj-desde" min="0" max="23"> <span data-t="hastaH">a</span> <input type="number" id="aj-hasta" min="0" max="23"> h</span>
+    </label>
+    <label class="fila"><input type="checkbox" id="aj-sonido"> <span data-t="ajSonido">Sonido en alertas</span></label>
+    <label class="fila"><span data-t="ajIdioma">Idioma</span>
+      <select id="aj-idioma"><option value="auto" data-t="auto">Automático</option><option value="es">Español</option><option value="en">English</option></select>
+    </label>
+    <label class="col"><span data-t="ajVigilar">Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)</span>
       <input type="text" id="aj-vigilar" spellcheck="false" autocomplete="off">
     </label>
-    <p class="nota">Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.</p>
-    <button id="aj-cerrar" class="activo">Listo</button>
+    <p class="nota" data-t="ajNota">Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.</p>
+    <button id="aj-cerrar" class="activo" data-t="listo">Listo</button>
   </div>
 </div>
 <script src="app.js"></script>
