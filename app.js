@@ -9,14 +9,12 @@
   var INTERVALO_MS = 6000;       // cada cuánto se piden datos
   var EXTRAPOLAR_MAX_S = 45;     // cuánto se "adivina" la posición sin datos nuevos
   var VUELTA_BARRIDO_MS = 4000;
-  var HITOS = [
-    { id: 'AEP', icao: 'SABE', lat: -34.5592, lon: -58.4156 },
-    { id: 'EZE', icao: 'SAEZ', lat: -34.8222, lon: -58.5358 },
-    { id: 'FDO', icao: 'SADF', lat: -34.4532, lon: -58.5896 },
-    { id: 'EPA', icao: 'SADP', lat: -34.6099, lon: -58.6126 },
-    { id: 'MOR', icao: 'SADM', lat: -34.6763, lon: -58.6428 }
-  ];
-  var GEO = window.RADAR_GEO || { costa: [], pistas: [] };
+  // Mapa de fondo: se arma con mosaicos de 2°x2° (carpeta /mapa) según la ubicación.
+  // Capas: c costa, f límites de países, p provincias/estados, r ríos,
+  //        ci ciudades [nombre, lat, lon, población], a aeropuertos [código, lat, lon, nivel], pi pistas
+  var MOSAICO = 2;
+  var GEO = { c: [], f: [], p: [], r: [], ci: [], a: [], pi: [] };
+  var mosaicos = {}; // cache: clave -> datos (o {} si no hay nada en ese mosaico)
 
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo');
@@ -409,38 +407,91 @@
       x.fillText((v % 1 ? v.toFixed(1) : v) + ' km', CX + R * k / 4 * Math.cos(rad(160)) + 4, CY + R * k / 4 * Math.sin(rad(160)));
     }
 
-    // Costa del Río de la Plata (recortada al círculo del radar)
+    dibujarMapa(x);
+    x.fillStyle = '#ffffff'; x.beginPath(); x.arc(CX, CY, 3, 0, TAU); x.fill();
+  }
+
+  // Contornos del mapa: todo recortado al círculo y dibujado una sola vez en la capa de fondo
+  function dibujarMapa(x) {
+    function px(lat, lon) { var p = aXY(lat, lon); return [CX + p.x * ESCALA, CY - p.y * ESCALA]; }
+    function lineas(capa, color, ancho, guiones) {
+      x.strokeStyle = color; x.lineWidth = ancho; x.setLineDash(guiones || []);
+      GEO[capa].forEach(function (l) {
+        x.beginPath();
+        for (var i = 0; i < l.length; i += 2) {
+          var p = px(l[i], l[i + 1]);
+          if (i) x.lineTo(p[0], p[1]); else x.moveTo(p[0], p[1]);
+        }
+        x.stroke();
+      });
+    }
+    function dentro(lat, lon, margen) {
+      var p = aXY(lat, lon);
+      return p.x * p.x + p.y * p.y <= Math.pow(cfg.km * (margen || 0.97), 2);
+    }
     x.save();
     x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.clip();
-    x.strokeStyle = 'rgba(80,150,210,.55)'; x.lineWidth = 1.3; x.lineJoin = 'round';
-    GEO.costa.forEach(function (l) {
-      x.beginPath();
-      for (var i = 0; i < l.length; i += 2) {
-        var p = aXY(l[i], l[i + 1]);
-        if (i) x.lineTo(CX + p.x * ESCALA, CY - p.y * ESCALA); else x.moveTo(CX + p.x * ESCALA, CY - p.y * ESCALA);
-      }
-      x.stroke();
-    });
-    // Pistas (ancho real de ~45 m, con un mínimo para que se vean)
-    var conPistas = {};
+    x.lineJoin = 'round';
+    lineas('p', 'rgba(140,175,180,.28)', 1, [3, 4]);          // provincias / partidos / estados
+    lineas('r', 'rgba(70,130,200,.45)', 1);                    // ríos
+    lineas('f', 'rgba(215,180,120,.55)', 1.3, [7, 4]);         // límites de países
+    lineas('c', 'rgba(80,155,215,.65)', 1.3);                  // costa
+    x.setLineDash([]);
+
+    // Pistas con su ancho real (mínimo 2 px para que se vean)
     x.strokeStyle = 'rgba(255,150,210,.75)'; x.lineCap = 'round';
-    x.lineWidth = Math.max(2, 0.045 * ESCALA);
-    GEO.pistas.forEach(function (p) {
-      var a = aXY(p[2], p[3]), b = aXY(p[4], p[5]);
-      conPistas[p[0]] = true;
-      x.beginPath(); x.moveTo(CX + a.x * ESCALA, CY - a.y * ESCALA); x.lineTo(CX + b.x * ESCALA, CY - b.y * ESCALA); x.stroke();
+    GEO.pi.forEach(function (p) {
+      if (!dentro(p[0], p[1], 1.02)) return;
+      var a = px(p[0], p[1]), b = px(p[2], p[3]);
+      x.lineWidth = Math.max(2, (p[4] || 45) / 1000 * ESCALA);
+      x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke();
     });
     x.restore();
 
-    x.font = '11px Roboto, sans-serif';
-    HITOS.forEach(function (h) {
-      var xy = aXY(h.lat, h.lon);
-      if (Math.sqrt(xy.x * xy.x + xy.y * xy.y) > cfg.km) return;
-      var hx = CX + xy.x * ESCALA, hy = CY - xy.y * ESCALA;
-      if (!conPistas[h.icao]) { x.strokeStyle = 'rgba(255,120,200,.8)'; x.lineWidth = 1.5; x.strokeRect(hx - 4, hy - 4, 8, 8); }
-      x.fillStyle = 'rgba(255,160,215,.85)'; x.fillText(h.id, hx + 9, hy - 8);
+    // Ciudades: más o menos según el alcance
+    var minPob = cfg.km <= 25 ? 0 : cfg.km <= 50 ? 100000 : cfg.km <= 100 ? 300000 : 1000000;
+    x.font = 'italic 11px Roboto, sans-serif'; x.textBaseline = 'middle'; x.textAlign = 'left';
+    GEO.ci.forEach(function (c) {
+      if (c[3] < minPob || !dentro(c[1], c[2], 0.9)) return;
+      var p = px(c[1], c[2]);
+      if (Math.abs(p[0] - CX) < 18 && Math.abs(p[1] - CY) < 18) return; // no tapar el centro
+      x.fillStyle = 'rgba(160,175,180,.6)';
+      x.fillRect(p[0] - 1.5, p[1] - 1.5, 3, 3);
+      x.fillText(c[0], p[0] + 5, p[1]);
     });
-    x.fillStyle = '#ffffff'; x.beginPath(); x.arc(CX, CY, 3, 0, TAU); x.fill();
+
+    // Aeropuertos: grandes siempre; medianos y chicos al acercarse
+    var maxNivel = cfg.km <= 50 ? 2 : cfg.km <= 100 ? 1 : 0;
+    x.font = '11px Roboto, sans-serif';
+    GEO.a.forEach(function (a) {
+      if (a[3] > maxNivel || !dentro(a[1], a[2])) return;
+      var p = px(a[1], a[2]);
+      x.fillStyle = 'rgba(255,160,215,.9)';
+      x.fillText(a[0], p[0] + 9, p[1] - 8);
+    });
+  }
+
+  // Baja los mosaicos que cubren 220 km alrededor del centro y rearma el fondo
+  function cargarMapa() {
+    var dLat = 220 / KM_LAT, dLon = 220 / Math.max(10, kmLon(cfg.lat));
+    var i0 = Math.floor((Math.max(-89.9, cfg.lat - dLat) + 90) / MOSAICO), i1 = Math.floor((Math.min(89.9, cfg.lat + dLat) + 90) / MOSAICO);
+    var j0 = Math.floor((cfg.lon - dLon + 180) / MOSAICO), j1 = Math.floor((cfg.lon + dLon + 180) / MOSAICO);
+    var claves = [], n = 360 / MOSAICO;
+    for (var i = i0; i <= i1; i++) for (var j = j0; j <= j1; j++) claves.push(i + '_' + (((j % n) + n) % n));
+    var origen = cfg.lat + ',' + cfg.lon;
+    Promise.all(claves.map(function (k) {
+      if (mosaicos[k]) return mosaicos[k];
+      return fetch('/mapa/' + k + '.json')
+        .then(function (r) { return r.ok ? r.json() : {}; }) // 404 = mar abierto, sin datos
+        .catch(function () { return null; })                  // error de red: se reintenta después
+        .then(function (d) { if (d) mosaicos[k] = d; return d || {}; });
+    })).then(function (lista) {
+      if (origen !== cfg.lat + ',' + cfg.lon) return; // la ubicación cambió mientras bajaba
+      var g = { c: [], f: [], p: [], r: [], ci: [], a: [], pi: [] };
+      lista.forEach(function (d) { for (var k in g) if (d[k]) g[k] = g[k].concat(d[k]); });
+      GEO = g;
+      construirFondo();
+    });
   }
 
   // El borde y los puntos cardinales van ENCIMA del barrido, en otra capa
@@ -776,7 +827,7 @@
     pedir();
   });
 
-  $('btn-ubic').addEventListener('click', function () {
+  function ubicar() {
     if (!navigator.geolocation) return;
     $('pill').textContent = 'Ubicando…';
     navigator.geolocation.getCurrentPosition(function (p) {
@@ -787,13 +838,15 @@
       lista = [];
       seleccion = null;
       construirFondo();
+      cargarMapa();
       if (DEMO) demoTick(); else pedir();
       actualizarEstado();
     }, function () {
       $('pill').textContent = 'Sin ubicación';
       setTimeout(actualizarEstado, 2500);
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
-  });
+  }
+  $('btn-ubic').addEventListener('click', ubicar);
 
   $('btn-full').addEventListener('click', function () {
     var el = document.documentElement;
@@ -871,8 +924,33 @@
     tResize = setTimeout(function () { redimensionar(); calcularPosiciones(Date.now()); calcularEstelas(); }, 150);
   });
 
+  // ---------------- Actualización automática ----------------
+  // La tablet queda abierta días: cada 5 minutos se fija si hay una versión nueva publicada
+  // y, si la hay, recarga la página (los ajustes quedan guardados en la tablet).
+  var versionInicial = null;
+  function revisarVersion() {
+    if (document.hidden) return;
+    fetch('/api/version', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.v || j.v === 'local') return;
+        if (versionInicial === null) { versionInicial = j.v; return; }
+        if (j.v !== versionInicial && $('ajustes').className.indexOf('oculto') >= 0) location.reload();
+      })
+      .catch(function () {});
+  }
+
   // ---------------- Arranque ----------------
   redimensionar();
+  cargarMapa();
+  revisarVersion();
+  setInterval(revisarVersion, 5 * 60000);
+  // Primera vez sin ubicación guardada ni en la URL: la pide al dispositivo (si no, queda el Obelisco)
+  if (!params.has('lat') && g.lat == null) {
+    var yaPedida = false;
+    try { yaPedida = localStorage.getItem('radar-ubic-pedida') === '1'; localStorage.setItem('radar-ubic-pedida', '1'); } catch (e) {}
+    if (!yaPedida) setTimeout(ubicar, 800);
+  }
   renderRangos();
   actualizarEstado();
   reloj();
