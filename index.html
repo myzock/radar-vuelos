@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#020b0e">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Radar de vuelos</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono-192.png">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<div id="app">
+  <div id="zona-radar">
+    <canvas id="capa-fondo" class="capa"></canvas>
+    <canvas id="capa-estelas" class="capa"></canvas>
+    <canvas id="capa-barrido"></canvas>
+    <canvas id="capa-borde" class="capa"></canvas>
+    <canvas id="radar" class="capa"></canvas>
+  </div>
+  <aside id="panel">
+    <header>
+      <div id="reloj">--:--</div>
+      <div class="estado">
+        <span id="pill" class="pill cargando">Conectando</span>
+        <span id="fuente"></span>
+      </div>
+    </header>
+    <div id="rangos" class="rangos"></div>
+    <section id="detalle" class="detalle vacio">Tocá un avión para ver el detalle</section>
+    <div class="lista-titulo"><span>En el radar</span><span id="contador">0</span></div>
+    <ul id="lista"></ul>
+    <footer>
+      <button id="btn-ubic">📍 Mi ubicación</button>
+      <button id="btn-full">⛶ Pantalla completa</button>
+    </footer>
+  </aside>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

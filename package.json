@@ -1,0 +1,8 @@
+{
+  "name": "radar-vuelos",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "local": "node servidor-local.js"
+  }
+}
