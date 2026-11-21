@@ -82,7 +82,8 @@
       ajSonido: 'Sonido en alertas', ajIdioma: 'Idioma',
       ajVigilar: 'Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)',
       ajNota: 'Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.',
-      listo: 'Listo', titulo: 'Radar de vuelos'
+      listo: 'Listo', titulo: 'Radar de vuelos',
+      ajCentro: '📌 Elegir el centro tocando el radar', tocaCentro: 'Tocá el radar en el punto que querés como centro', centroListo: '📌 Centro actualizado'
     },
     en: {
       enTierra: 'On ground', enAp: ' at {ap}', deAp: ' from {ap}',
@@ -112,13 +113,22 @@
       ajSonido: 'Alert sound', ajIdioma: 'Language',
       ajVigilar: 'Alert me when it shows up (types, registrations or airlines, comma separated)',
       ajNota: 'Examples: A388 (type), N123AB (registration), KLM (airline). Emergencies (7700/7600/7500) are always alerted.',
-      listo: 'Done', titulo: 'Flight radar'
+      listo: 'Done', titulo: 'Flight radar',
+      ajCentro: '📌 Pick the center on the radar', tocaCentro: 'Tap the radar where you want the center', centroListo: '📌 Center updated'
     }
   };
   var LANG = 'es';
+  // Español si el sistema lo tiene entre sus idiomas o si la zona horaria es de un país hispanohablante
+  function prefiereEspanol() {
+    var langs = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
+    for (var i = 0; i < langs.length; i++) if (/^es/i.test(langs[i])) return true;
+    var tz = '';
+    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    return /^(America\/(Argentina|Montevideo|Santiago|Asuncion|La_Paz|Lima|Bogota|Caracas|Guayaquil|Mexico_City|Monterrey|Cancun|Merida|Chihuahua|Hermosillo|Tijuana|Guatemala|El_Salvador|Tegucigalpa|Managua|Costa_Rica|Panama|Havana|Santo_Domingo|Puerto_Rico)|Europe\/Madrid|Atlantic\/Canary|Africa\/Ceuta)/.test(tz);
+  }
   function resolverIdioma() {
     var i = ajustes.idioma || 'auto';
-    if (i === 'auto') i = /^es/i.test(navigator.language || '') ? 'es' : 'en';
+    if (i === 'auto') i = prefiereEspanol() ? 'es' : 'en';
     LANG = TEXTOS[i] ? i : 'es';
   }
   function T(k, v) {
@@ -527,9 +537,15 @@
 
   // ---------------- Modo noche ----------------
   var nocheActiva = false;
+  // ¿Está abierta como app (instalada en la pantalla de inicio) o en pantalla completa?
+  function modoApp() {
+    var m = window.matchMedia;
+    return !!(document.fullscreenElement || (m && (m('(display-mode: fullscreen)').matches || m('(display-mode: standalone)').matches)));
+  }
   function esNoche() {
     if (ajustes.noche === 'si') return true;
     if (ajustes.noche === 'no') return false;
+    if (!modoApp()) return false; // en una pestaña común (ej. la compu) el automático no oscurece
     var h = new Date().getHours(), de = +ajustes.nocheDesde, a = +ajustes.nocheHasta;
     return de <= a ? (h >= de && h < a) : (h >= de || h < a);
   }
@@ -540,7 +556,7 @@
     var v = $('noche');
     if (n) {
       v.style.display = 'block';
-      setTimeout(function () { v.style.opacity = '0.7'; }, 30);
+      setTimeout(function () { v.style.opacity = '0.55'; }, 30); // brillo al 45%
     } else {
       v.style.opacity = '0';
       setTimeout(function () { if (!nocheActiva) v.style.display = 'none'; }, 2100);
@@ -931,6 +947,8 @@
       var d = sel.d;
       ctx.setTransform(D, 0, 0, D, 0, 0);
       ctx.globalAlpha = 1;
+      ctx.save(); // todo lo del seleccionado queda recortado al círculo del radar
+      ctx.beginPath(); ctx.arc(CX, CY, R, 0, TAU); ctx.clip();
       ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
       ctx.beginPath();
       if (d.gs && d.trk != null && !d.gnd) {
@@ -950,6 +968,7 @@
           ctx.globalAlpha = 0.75; ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]);
           ctx.beginPath(); ctx.moveTo(sel.px, sel.py); ctx.lineTo(dst.x, dst.y); ctx.stroke();
           ctx.setLineDash([]);
+          ctx.restore(); ctx.save(); // la etiqueta del destino puede ir sobre el borde
           var et = etiquetaDestino(rt.d + ' · ' + fmtNum(dst.dist) + ' km');
           // la etiqueta queda adentro del círculo, cerca del extremo de la línea
           // (si el destino está en el radar, va debajo del aeropuerto para no tapar su nombre)
@@ -963,6 +982,8 @@
           ctx.setTransform(D, 0, 0, D, 0, 0);
         }
       }
+      ctx.restore();
+      ctx.setTransform(D, 0, 0, D, 0, 0);
       pintarAvion(sel, true, ang, viejo, true, D);
       pintarEtiquetas(sel, conEtiqueta, D);
     } else if (perdido && perdido.d.hex === seleccion) {
@@ -1207,9 +1228,28 @@
   }
 
   // ---------------- Interacción ----------------
+  // Mover el centro (para dispositivos sin ubicación): Ajustes → "Elegir el centro", y después tocar el radar
+  var eligiendoCentro = false;
+  function moverCentro(lat, lon) {
+    cfg.lat = lat; cfg.lon = lon;
+    guardar();
+    aviones = {}; lista = []; seleccion = null; perdido = null;
+    construirFondo();
+    calcularEstelas();
+    cargarMapa();
+    renderPanel();
+    if (DEMO) demoTick(); else pedir();
+  }
   cv.addEventListener('click', function (e) {
     var r = cv.getBoundingClientRect();
     var x = e.clientX - r.left, y = e.clientY - r.top;
+    if (eligiendoCentro) {
+      eligiendoCentro = false;
+      var kx = (x - CX) / ESCALA, ky = (CY - y) / ESCALA; // km desde el centro actual
+      moverCentro(cfg.lat + ky / KM_LAT, cfg.lon + kx / kmLon(cfg.lat));
+      mostrarAlerta(T('centroListo'), false);
+      return;
+    }
     var mejor = null, mejorD = 40;
     lista.forEach(function (a) {
       if (!a.mostrar) return;
@@ -1249,15 +1289,7 @@
     if (!navigator.geolocation) return;
     $('pill').textContent = T('ubicando');
     navigator.geolocation.getCurrentPosition(function (p) {
-      cfg.lat = p.coords.latitude;
-      cfg.lon = p.coords.longitude;
-      guardar();
-      aviones = {};
-      lista = [];
-      seleccion = null;
-      construirFondo();
-      cargarMapa();
-      if (DEMO) demoTick(); else pedir();
+      moverCentro(p.coords.latitude, p.coords.longitude);
       actualizarEstado();
     }, function () {
       $('pill').textContent = T('sinUbicacion');
@@ -1324,6 +1356,12 @@
     renderPanel();
   }
   $('btn-aj').addEventListener('click', abrirAjustes);
+  $('aj-centro').addEventListener('click', function () {
+    leerAjustes();
+    $('ajustes').className = 'ajustes oculto';
+    eligiendoCentro = true;
+    mostrarAlerta(T('tocaCentro'), false);
+  });
   $('r-aj').addEventListener('click', abrirAjustes);
   // En pantalla redonda, tocar el alcance pasa al siguiente
   $('r-rango').addEventListener('click', function () {
