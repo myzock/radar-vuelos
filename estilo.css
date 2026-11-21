@@ -1,10 +1,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  height: 100%; background: #020b0e; color: #cfeee9; overflow: hidden;
+  height: 100%; background: #000; color: #cfeee9; overflow: hidden;
   font-family: Roboto, "Segoe UI", system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
 }
-#app { display: flex; height: 100%; width: 100%; }
+#app { display: flex; height: 100%; width: 100%; transition: transform 2s ease; }
 #zona-radar { flex: 1 1 auto; position: relative; min-width: 0; }
 #zona-radar .capa { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 #capa-fondo, #capa-estelas, #capa-borde, #capa-barrido { pointer-events: none; }
@@ -15,7 +15,7 @@ html, body {
 #panel {
   flex: 0 0 34%; max-width: 420px; min-width: 270px;
   display: flex; flex-direction: column; gap: 10px; padding: 14px 14px 10px;
-  background: linear-gradient(#04161c, #020b0e); border-left: 1px solid #0d3a40;
+  background: #000; border-left: 1px solid #0d3a40;
 }
 @media (orientation: portrait) {
   #app { flex-direction: column; }
@@ -33,15 +33,15 @@ header { display: flex; align-items: center; justify-content: space-between; }
 .pill.cargando { color: #6fa7a0; }
 
 button {
-  font: inherit; font-size: 14px; color: #9fd8d0; background: #06232a;
+  font: inherit; font-size: 14px; color: #9fd8d0; background: #000;
   border: 1px solid #0f4a52; border-radius: 10px; padding: 9px 6px;
 }
-button:active { background: #0c4b52; }
-button.activo { background: #0c4b52; color: #eafffc; border-color: #3fd1c4; }
+button:active { background: #0a2a2e; }
+button.activo { background: #0a3a3f; color: #eafffc; border-color: #3fd1c4; }
 .rangos { display: flex; gap: 6px; }
 .rangos button { flex: 1; }
 
-.detalle { border: 1px solid #c9a227; border-radius: 12px; padding: 10px 12px; background: rgba(201,162,39,.06); min-height: 118px; }
+.detalle { border: 1px solid #c9a227; border-radius: 12px; padding: 10px 12px; background: #000; min-height: 118px; }
 .detalle.vacio {
   border-color: #0f4a52; background: none; color: #4f807a; font-size: 14px; text-align: center;
   display: flex; align-items: center; justify-content: center;
@@ -57,7 +57,7 @@ button.activo { background: #0c4b52; color: #eafffc; border-color: #3fd1c4; }
   display: flex; align-items: baseline; gap: 10px;
   padding: 8px 6px; border-bottom: 1px solid #0a2c31; font-size: 15px;
 }
-#lista li.sel { background: #0b3a40; }
+#lista li.sel { background: #0a2f33; }
 #lista .izq { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #lista .cs { color: #e8fffb; font-weight: 500; }
 #lista .t { color: #6fa7a0; font-size: 12px; margin-left: 6px; }

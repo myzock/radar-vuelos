@@ -225,11 +225,11 @@
     fondo.width = cv.width; fondo.height = cv.height;
     var x = fondo.getContext('2d');
     x.setTransform(DPR, 0, 0, DPR, 0, 0);
-    x.fillStyle = '#020b0e'; x.fillRect(0, 0, W, H);
-
-    var gr = x.createRadialGradient(CX, CY, 0, CX, CY, R);
-    gr.addColorStop(0, '#0a3d44'); gr.addColorStop(1, '#03191e');
-    x.fillStyle = gr; x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.fill();
+    // OLED: negro puro (#000 = píxel apagado). Solo un halo muy tenue en el centro.
+    x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+    var gr = x.createRadialGradient(CX, CY, 0, CX, CY, R * 0.6);
+    gr.addColorStop(0, 'rgba(20,90,90,.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = gr; x.beginPath(); x.arc(CX, CY, R * 0.6, 0, TAU); x.fill();
 
     x.lineWidth = 1; x.strokeStyle = 'rgba(120,230,215,.32)';
     for (var k = 1; k <= 3; k++) { x.beginPath(); x.arc(CX, CY, R * k / 4, 0, TAU); x.stroke(); }
@@ -272,7 +272,7 @@
     x.font = 'bold 16px Roboto, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
     [['N', 0], ['E', 90], ['S', 180], ['O', 270]].forEach(function (c) {
       var px = CX + (R + 12) * Math.cos(rad(c[1])), py = CY + (R + 12) * Math.sin(rad(c[1]));
-      x.fillStyle = '#020b0e'; x.beginPath(); x.arc(px, py, 11, 0, TAU); x.fill();
+      x.fillStyle = '#000'; x.beginPath(); x.arc(px, py, 11, 0, TAU); x.fill();
       x.fillStyle = '#d8fff8'; x.fillText(c[0], px, py + 1);
     });
   }
@@ -619,6 +619,16 @@
     pedir();
     setInterval(pedir, INTERVALO_MS);
   }
+  // Anti quemado OLED: corre toda la interfaz unos píxeles cada 2 minutos,
+  // así los elementos fijos (anillos, reloj, bordes) no marcan la pantalla.
+  var DESPLAZAMIENTOS = [[0, 0], [2, 1], [1, -2], [-2, -1], [-1, 2], [2, -2], [-2, 2]];
+  var paso = 0;
+  setInterval(function () {
+    paso = (paso + 1) % DESPLAZAMIENTOS.length;
+    var dx = DESPLAZAMIENTOS[paso][0], dy = DESPLAZAMIENTOS[paso][1];
+    document.getElementById('app').style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }, 120000);
+
   mantenerDespierta();
   requestAnimationFrame(cuadro);
 })();
