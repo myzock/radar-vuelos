@@ -24,12 +24,12 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 
 ```
 Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.fi / airplanes.live / adsb.lol
-                              →  /api/rutas                      →  adsb.lol (base de rutas)
+                              →  /api/rutas                      →  adsb.lol / adsbdb.com (rutas)
 ```
 
 - **Frontend:** HTML + CSS + JavaScript sin frameworks ni build, compatible con navegadores viejos (probado para Chrome 106 / Android 6).
 - **Proxy (`api/aviones.js`):** función serverless que consulta las APIs públicas en orden, con respaldo si una falla, normaliza la respuesta y la cachea unos segundos en el CDN para no pasarse de los límites de uso.
-- **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign; se cachean una hora.
+- **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign, con [adsbdb.com](https://www.adsbdb.com) de respaldo; se cachean una hora.
 - **Mapa (`geo.js`):** costa de Natural Earth 1:10m y pistas de OurAirports, ambas de dominio público.
 - La app pide datos cada 6 segundos. Las funciones corren en `gru1` (São Paulo) para menor latencia desde Argentina.
 
@@ -90,7 +90,7 @@ Cada push a `main` se publica en Vercel. No hay build ni variables de entorno.
 
 Mapa: [Natural Earth](https://www.naturalearthdata.com) y [OurAirports](https://ourairports.com) (dominio público).
 
-Los datos de vuelos son de redes comunitarias de receptores ADS-B: [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) y [adsb.lol](https://adsb.lol). Gracias a todos los que alimentan esas redes. Sus APIs son gratuitas y están pensadas para uso personal y no comercial: revisá sus condiciones antes de usar esto para otra cosa. La cobertura depende de la cantidad de receptores en cada zona.
+Los datos de vuelos son de redes comunitarias de receptores ADS-B: [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) y [adsb.lol](https://adsb.lol); las rutas, de adsb.lol y [adsbdb.com](https://www.adsbdb.com). Gracias a todos los que alimentan esas redes. Sus APIs son gratuitas y están pensadas para uso personal y no comercial: revisá sus condiciones antes de usar esto para otra cosa. La cobertura depende de la cantidad de receptores en cada zona.
 
 ## Licencia
 
