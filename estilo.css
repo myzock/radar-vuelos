@@ -101,3 +101,25 @@ footer button { flex: 1; }
 }
 .ajustes input[type=number] { width: 58px; }
 .ajustes .nota { font-size: 12px; color: #5f938c; }
+
+/* ---------- Modo pantalla redonda (?redondo o pantalla cuadrada) ---------- */
+#r-ui { display: none; }
+body.redondo #panel { display: none; }
+body.redondo #zona-radar { flex: 1 1 auto; height: 100%; }
+body.redondo #r-ui { display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 5; }
+body.redondo #r-ui button, body.redondo .r-detalle { pointer-events: auto; }
+.r-arriba { position: absolute; top: 9%; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 8px; }
+#r-reloj { font-size: 4.2vmin; color: #e8fffb; border: 1px solid #3fd1c4; border-radius: 999px; padding: .2em .8em; background: #000; font-variant-numeric: tabular-nums; }
+#r-estado { font-size: 3vmin; background: #000; }
+.r-abajo { position: absolute; bottom: 7%; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; }
+.r-abajo button { font-size: 3.4vmin; padding: .35em .9em; border-radius: 999px; border-color: #3fd1c4; color: #d8fff8; }
+.r-detalle {
+  position: absolute; left: 50%; top: 57%; transform: translateX(-50%);
+  background: #000; border: 1px solid #ffd54a; border-radius: 10px; padding: .5em .8em;
+  font-size: 3.2vmin; line-height: 1.35; color: #e9e3c8; white-space: nowrap; max-width: 64%;
+}
+.r-detalle.oculto { display: none; }
+.r-detalle b { color: #ffd54a; font-size: 1.25em; font-weight: 500; }
+.r-detalle .ruta { color: #ffd54a; }
+body.redondo .alerta { left: 50%; top: 17%; transform: translateX(-50%); max-width: 70%; font-size: 3.2vmin; text-align: center; }
+body.redondo .ajustes .caja { max-width: 72%; max-height: 72%; overflow-y: auto; }

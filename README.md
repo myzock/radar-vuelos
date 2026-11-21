@@ -47,6 +47,10 @@ El radar son 5 canvas apilados que compone la GPU; solo uno se redibuja por cuad
 
 Con el CPU frenado 6x, dibujar un cuadro con 80 aviones lleva unos 2 ms de JavaScript, sobre 16,6 ms de presupuesto.
 
+## Pantallas redondas
+
+En una pantalla cuadrada o redonda (por ejemplo una de 1080×1080 o 480×480) el radar ocupa todo el círculo y el panel lateral se reemplaza por controles dentro del radar: reloj y estado arriba, tarjeta del avión seleccionado abajo, y botones de alcance y ajustes. Tocar el alcance pasa al siguiente.
+
 ## Modo OLED
 
 - Fondo y panel en `#000` (píxeles apagados).
@@ -61,6 +65,7 @@ Con el CPU frenado 6x, dibujar un cuadro con 80 aviones lleva unos 2 ms de JavaS
 | `?km=50` | Alcance inicial |
 | `?demo` / `?demo=80` | Datos simulados (con 80 aviones para prueba de carga) |
 | `?fps` | Muestra fps y milisegundos por cuadro |
+| `?redondo` / `?redondo=0` | Fuerza o apaga el modo pantalla redonda (se activa solo en pantallas cuadradas) |
 | `?dpr=1` | Baja la resolución interna si el dispositivo no llega a 60 fps |
 
 ## Instalar en la tablet

@@ -21,6 +21,10 @@
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo');
   var DEMO_N = parseInt(params.get('demo'), 10) || 14; // ?demo=80 para prueba de carga
+  // Pantalla redonda: ?redondo fuerza el modo, ?redondo=0 lo apaga; si no, se activa solo en pantallas cuadradas
+  var REDONDO = params.has('redondo') ? params.get('redondo') !== '0'
+    : Math.abs(window.innerWidth / window.innerHeight - 1) < 0.12;
+  if (REDONDO) document.body.className += ' redondo';
 
   function primeroNum() {
     for (var i = 0; i < arguments.length; i++) {
@@ -362,7 +366,7 @@
     var r = cv.getBoundingClientRect();
     W = r.width; H = r.height;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-    R = Math.min(W, H) / 2 - 22;
+    R = Math.min(W, H) / 2 - (REDONDO ? 2 : 22);
     CX = W / 2; CY = H / 2;
     sprites = {};
     construirBarrido();
@@ -446,7 +450,8 @@
     x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.stroke();
     x.font = 'bold 16px Roboto, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
     [['N', 0], ['E', 90], ['S', 180], ['O', 270]].forEach(function (c) {
-      var px = CX + (R + 12) * Math.cos(rad(c[1])), py = CY + (R + 12) * Math.sin(rad(c[1]));
+      var dc = REDONDO ? R - 16 : R + 12; // en pantalla redonda van del lado de adentro
+      var px = CX + dc * Math.cos(rad(c[1])), py = CY + dc * Math.sin(rad(c[1]));
       x.fillStyle = '#000'; x.beginPath(); x.arc(px, py, 11, 0, TAU); x.fill();
       x.fillStyle = '#d8fff8'; x.fillText(c[0], px, py + 1);
     });
@@ -647,9 +652,13 @@
     p.className = 'pill ' + estado;
     p.textContent = textos[estado] || estado;
     $('fuente').textContent = DEMO ? 'datos simulados' : (fuente ? 'vía ' + fuente : '');
+    var re = $('r-estado');
+    re.className = p.className;
+    re.textContent = p.textContent;
   }
 
   function renderRangos() {
+    $('r-rango').textContent = cfg.km + ' KM';
     $('rangos').innerHTML = RANGOS.map(function (r) {
       return '<button data-km="' + r + '"' + (r === cfg.km ? ' class="activo"' : '') + '>' + r + ' km</button>';
     }).join('');
@@ -670,6 +679,7 @@
     }).join('') : '<li class="vacio">' + (estado === 'cargando' ? 'Buscando aviones…' : 'No hay aviones en este radio') + '</li>');
 
     var a = seleccion && aviones[seleccion];
+    renderDetalleRedondo(a);
     if (!a) {
       poner('detalle', 'className', 'detalle vacio');
       poner('detalle', 'innerHTML', 'Tocá un avión para ver el detalle');
@@ -698,6 +708,20 @@
       '</div>');
   }
 
+  // Tarjeta compacta para pantalla redonda (como los radares de escritorio)
+  function renderDetalleRedondo(a) {
+    if (!REDONDO) return;
+    if (!a) { poner('r-detalle', 'className', 'r-detalle oculto'); return; }
+    var d = a.d;
+    var ruta = rutaCorta(d);
+    poner('r-detalle', 'className', 'r-detalle');
+    poner('r-detalle', 'innerHTML',
+      '<b>' + esc(nombre(d)) + '</b>' + (ruta ? ' <span class="ruta">' + esc(ruta) + '</span>' : '') + '<br>' +
+      esc(d.desc || d.tipo || '') + '<br>' +
+      altTexto(d) + (d.trk != null ? ' · RUMBO ' + Math.round(d.trk) + '°' : '') + '<br>' +
+      (d.gs != null ? miles(d.gs * 1.852) + ' km/h · ' : '') + a.dist.toFixed(1) + ' km');
+  }
+
   // Solo escribe en el DOM si el valor cambió (evita relayouts que cortan la animación)
   var cacheDom = {};
   function poner(id, prop, valor) {
@@ -709,7 +733,9 @@
 
   function reloj() {
     var f = new Date();
-    poner('reloj', 'textContent', ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2));
+    var hm = ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2);
+    poner('reloj', 'textContent', hm);
+    poner('r-reloj', 'textContent', hm);
   }
 
   // ---------------- Interacción ----------------
@@ -814,6 +840,18 @@
     renderPanel();
   }
   $('btn-aj').addEventListener('click', abrirAjustes);
+  $('r-aj').addEventListener('click', abrirAjustes);
+  // En pantalla redonda, tocar el alcance pasa al siguiente
+  $('r-rango').addEventListener('click', function () {
+    cfg.km = RANGOS[(RANGOS.indexOf(cfg.km) + 1) % RANGOS.length];
+    guardar();
+    renderRangos();
+    construirFondo();
+    calcularPosiciones(Date.now());
+    calcularEstelas();
+    renderPanel();
+    pedir();
+  });
   $('ajustes').addEventListener('change', leerAjustes);
   $('aj-cerrar').addEventListener('click', function () {
     leerAjustes();
