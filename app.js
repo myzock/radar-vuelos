@@ -13,6 +13,9 @@
   // Capas: c costa, f límites de países, p provincias/estados, r ríos,
   //        ci ciudades [nombre, lat, lon, población], a aeropuertos [código, lat, lon, nivel], pi pistas
   var MOSAICO = 2;
+  // Subir este número cada vez que se regeneran los mosaicos: el navegador los guarda una semana
+  // y con otra versión en la dirección los vuelve a bajar en lugar de usar los viejos.
+  var VERSION_MAPA = 2;
   var GEO = { c: [], f: [], p: [], r: [], l: [], w: [], ci: [], a: [], pi: [], cargado: false };
   var mosaicos = {}; // cache: clave -> datos (o {} si no hay nada en ese mosaico)
 
@@ -757,7 +760,7 @@
     var origen = cfg.lat + ',' + cfg.lon;
     Promise.all(claves.map(function (k) {
       if (mosaicos[k]) return mosaicos[k];
-      return fetch('/mapa/' + k + '.json')
+      return fetch('/mapa/' + k + '.json?v=' + VERSION_MAPA)
         .then(function (r) { return r.ok ? r.json() : {}; }) // 404 = mar abierto, sin datos
         .catch(function () { return null; })                  // error de red: se reintenta después
         .then(function (d) { if (d) mosaicos[k] = d; return d || {}; });
@@ -771,7 +774,9 @@
           if (k === 'l' || k === 'w') g[k].push(d[k]); else g[k] = g[k].concat(d[k]);
         }
       });
-      g.cargado = true;
+      // Solo se pinta agua y tierra si los mosaicos traen polígonos: si hay costa pero no tierra,
+      // son mosaicos viejos y es mejor dejar el fondo negro que pintar todo como agua.
+      g.cargado = g.l.length > 0 || g.c.length === 0;
       GEO = g;
       construirFondo();
     });

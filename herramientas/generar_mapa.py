@@ -1,4 +1,5 @@
 """Genera mosaicos estáticos de mapa (2°x2°) para radar-vuelos.
+IMPORTANTE: después de regenerar, subir VERSION_MAPA en app.js (el navegador guarda los mosaicos una semana).
 Capas: c costa, f países, p provincias, r ríos, l tierra (polígonos), w lagos (polígonos),
 ci ciudades, a aeropuertos, pi pistas.
 Uso: python3 generar_mapa.py <carpeta_datos> <carpeta_salida>"""
