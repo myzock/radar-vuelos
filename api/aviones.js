@@ -3,19 +3,22 @@
 // y devuelve una lista normalizada y liviana para la tablet.
 
 const FUENTES = [
-  { nombre: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}` },
-  { nombre: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}` },
-  { nombre: 'adsb.lol', url: (lat, lon, nm) => `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${nm}` },
+  { nombre: 'adsb.fi', url: (lat, lon, nm) => `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${nm}`,
+    hex: (h) => `https://opendata.adsb.fi/api/v2/hex/${h}` },
+  { nombre: 'airplanes.live', url: (lat, lon, nm) => `https://api.airplanes.live/v2/point/${lat}/${lon}/${nm}`,
+    hex: (h) => `https://api.airplanes.live/v2/hex/${h}` },
+  { nombre: 'adsb.lol', url: (lat, lon, nm) => `https://api.adsb.lol/v2/lat/${lat}/lon/${lon}/dist/${nm}`,
+    hex: (h) => `https://api.adsb.lol/v2/hex/${h}` },
 ];
 
 // Recuerda la última fuente que funcionó (mientras la función siga "caliente")
 let preferida = 0;
 
-async function traer(fuente, lat, lon, nm) {
+async function traer(fuente, lat, lon, nm, urlDirecta) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 5000);
   try {
-    const r = await fetch(fuente.url(lat, lon, nm), {
+    const r = await fetch(urlDirecta || fuente.url(lat, lon, nm), {
       signal: ctrl.signal,
       headers: { 'User-Agent': 'radar-vuelos/1.0 (uso personal)', Accept: 'application/json' },
     });
@@ -76,6 +79,16 @@ module.exports = async (req, res) => {
     try {
       const lista = await traer(f, latS, lonS, nm);
       preferida = idx;
+      // Avión seguido fuera del área: se lo busca por su código en OTRA fuente
+      // (así no se suman dos consultas seguidas a la misma API y su límite de uso)
+      const hex = String(q.hex || '').toLowerCase();
+      if (/^[0-9a-f]{6}$/.test(hex) && !lista.some((x) => String(x.hex || '').toLowerCase() === hex)) {
+        const otra = FUENTES[(idx + 1) % FUENTES.length];
+        try {
+          const extra = await traer(otra, 0, 0, 0, otra.hex(hex));
+          extra.forEach((x) => lista.push(x));
+        } catch (e) { /* si falla, la app lo marca como sin señal */ }
+      }
       // Cache en el CDN de Vercel: varias consultas seguidas no le pegan a la API
       res.setHeader('Cache-Control', 's-maxage=4, stale-while-revalidate=20');
       res.status(200).json({

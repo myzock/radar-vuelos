@@ -123,3 +123,15 @@ body.redondo #r-ui button, body.redondo .r-detalle { pointer-events: auto; }
 .r-detalle .ruta { color: #ffd54a; }
 body.redondo .alerta { left: 50%; top: 17%; transform: translateX(-50%); max-width: 70%; font-size: 3.2vmin; text-align: center; }
 body.redondo .ajustes .caja { max-width: 72%; max-height: 72%; overflow-y: auto; }
+
+/* Seguimiento */
+.detalle { position: relative; }
+.detalle .cerrar { position: absolute; top: 8px; right: 8px; padding: 2px 9px; font-size: 13px; border-radius: 8px; }
+.estado-seg { font-size: 14px; margin: 3px 0; }
+.estado-seg.ok { color: #7dff9a; }
+.estado-seg.aviso { color: #ffb347; }
+.estado-seg .ampliar { padding: 3px 8px; font-size: 12px; margin-left: 6px; border-color: #ffb347; color: #ffd9a0; }
+.detalle.perdido { border-color: #5a6666; }
+.detalle.perdido .cs, .detalle.perdido .ruta { color: #9aa7a7; }
+.r-detalle.perdido { border-color: #5a6666; color: #9aa7a7; }
+.r-detalle.perdido b { color: #c8d0d0; }

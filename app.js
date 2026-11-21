@@ -93,7 +93,9 @@
 
   // ---------------- Estado ----------------
   var aviones = {};   // hex -> { d, t0, visto, estela[], px, py, dist, dentro }
-  var seleccion = null;
+  var seleccion = null;  // hex del avión que se está siguiendo
+  var perdido = null;    // último dato del seguido si dejó de aparecer: { d, lat, lon, hora }
+  var SIN_SENAL_S = 20;  // a partir de cuántos segundos sin posición se avisa
   var estado = DEMO ? 'demo' : 'cargando';
   var fuente = '';
   var ultimaOK = 0;
@@ -119,14 +121,33 @@
         a.estela.push({ lat: a.d.lat, lon: a.d.lon });
         if (a.estela.length > 12) a.estela.shift();
       }
+      // Aterrizajes y despegues (se avisa solo del avión que estás siguiendo)
+      if (a.d && !a.d.gnd && d.gnd) {
+        a.aterrizo = { hora: ahora, ap: aeropuertoCercano(d.lat, d.lon) };
+        if (d.hex === seleccion) mostrarAlerta('🛬 ' + nombre(d) + ' aterrizó' + (a.aterrizo.ap ? ' en ' + a.aterrizo.ap : ''), false);
+      } else if (a.d && a.d.gnd && !d.gnd) {
+        a.despego = { hora: ahora, ap: aeropuertoCercano(a.d.lat, a.d.lon) };
+        if (d.hex === seleccion) mostrarAlerta('🛫 ' + nombre(d) + ' despegó' + (a.despego.ap ? ' de ' + a.despego.ap : ''), false);
+      }
       a.d = d;
       a.t0 = ahora - (d.seen || 0) * 1000;
       a.visto = ahora;
     });
     Object.keys(aviones).forEach(function (h) {
-      if (!vistos[h] && ahora - aviones[h].visto > 60000) delete aviones[h];
+      if (!vistos[h] && ahora - aviones[h].visto > 60000) {
+        if (h === seleccion) {
+          // El que seguías desapareció: se guarda dónde se lo vio por última vez
+          var p = posActual(aviones[h], ahora);
+          perdido = { d: aviones[h].d, lat: p.lat, lon: p.lon, hora: aviones[h].t0 + EXTRAPOLAR_MAX_S * 1000 };
+          mostrarAlerta('Se perdió la señal de ' + nombre(aviones[h].d), false);
+        }
+        delete aviones[h];
+      }
     });
-    if (seleccion && !aviones[seleccion]) seleccion = null;
+    if (seleccion && aviones[seleccion] && perdido) { // volvió a aparecer
+      perdido = null;
+      mostrarAlerta('📡 Volvió la señal de ' + nombre(aviones[seleccion].d), false);
+    }
     rehacerLista();
     calcularPosiciones(ahora);
     calcularEstelas();
@@ -140,7 +161,8 @@
     if (DEMO || pidiendo || document.hidden) return;
     pidiendo = true;
     var radio = Math.ceil(cfg.km * 1.15);
-    var url = '/api/aviones?lat=' + cfg.lat.toFixed(3) + '&lon=' + cfg.lon.toFixed(3) + '&km=' + radio;
+    var url = '/api/aviones?lat=' + cfg.lat.toFixed(3) + '&lon=' + cfg.lon.toFixed(3) + '&km=' + radio +
+      (seleccion ? '&hex=' + seleccion : ''); // el seguido se pide aparte por si se va del área
     var ctrl = window.AbortController ? new AbortController() : null;
     var to = setTimeout(function () { if (ctrl) ctrl.abort(); }, 9000);
     fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
@@ -581,7 +603,7 @@
     x.fillStyle = '#a0f0e6';
     for (var i = 0; i < lista.length; i++) {
       var a = lista[i], n = a.estela.length;
-      if (!pasaFiltros(a.d)) continue;
+      if (!pasaFiltros(a.d) && a.d.hex !== seleccion) continue;
       for (var j = 0; j < n; j++) {
         var xy = aXY(a.estela[j].lat, a.estela[j].lon);
         if (xy.x * xy.x + xy.y * xy.y > cfg.km * cfg.km) continue;
@@ -602,7 +624,7 @@
       a.px = CX + xy.x * ESCALA;
       a.py = CY - xy.y * ESCALA;
       a.dentro = a.dist <= cfg.km;
-      a.mostrar = a.dentro && pasaFiltros(a.d);
+      a.mostrar = a.dentro && (pasaFiltros(a.d) || a.d.hex === seleccion); // el seguido ignora los filtros
     }
   }
 
@@ -662,6 +684,16 @@
       ctx.arc(sel.px, sel.py, 17, 0, TAU);
       ctx.stroke();
       pintarAvion(sel, true, ang, viejo, true, D);
+    } else if (perdido && perdido.d.hex === seleccion) {
+      // Última posición conocida del avión que se perdió: círculo punteado gris
+      var pp = aXY(perdido.lat, perdido.lon);
+      if (pp.x * pp.x + pp.y * pp.y <= cfg.km * cfg.km) {
+        ctx.setTransform(D, 0, 0, D, 0, 0);
+        ctx.globalAlpha = 0.8;
+        ctx.strokeStyle = '#9aa7a7'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(CX + pp.x * ESCALA, CY - pp.y * ESCALA, 14, 0, TAU); ctx.stroke();
+        ctx.setLineDash([]);
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -669,7 +701,8 @@
   function pintarAvion(a, sel, ang, viejo, conEtiqueta, D) {
     var d = a.d;
     var delta = ((ang - a.rumboDesde) % 360 + 360) % 360;
-    ctx.globalAlpha = sel ? 1 : (viejo ? 0.35 : 0.6 + 0.4 * (1 - delta / 360));
+    var sinSenal = (Date.now() - a.t0) / 1000 > SIN_SENAL_S;
+    ctx.globalAlpha = sel ? (sinSenal ? 0.45 : 1) : (viejo ? 0.35 : 0.6 + 0.4 * (1 - delta / 360));
     var spr = spriteAvion(sel ? '#ffd54a' : colorAlt(d), sel ? 1.25 : 1);
     var r = (d.trk || 0) * Math.PI / 180, co = Math.cos(r), si = Math.sin(r);
     ctx.setTransform(D * co, D * si, -D * si, D * co, a.px * D, a.py * D);
@@ -718,6 +751,60 @@
     }).join('');
   }
 
+  // ---------------- Seguimiento ----------------
+  function distKm(lat1, lon1, lat2, lon2) {
+    var dx = (lon2 - lon1) * kmLon((lat1 + lat2) / 2), dy = (lat2 - lat1) * KM_LAT;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function aeropuertoCercano(lat, lon) {
+    var mejor = '', mejorD = 6; // a menos de 6 km
+    GEO.a.forEach(function (a) { var d = distKm(lat, lon, a[1], a[2]); if (d < mejorD) { mejorD = d; mejor = a[0]; } });
+    return mejor;
+  }
+  function lugarCercano(lat, lon) {
+    var mejor = null, mejorD = 40;
+    GEO.ci.forEach(function (c) { var d = distKm(lat, lon, c[1], c[2]); if (d < mejorD) { mejorD = d; mejor = c[0]; } });
+    var ap = aeropuertoCercano(lat, lon);
+    return ap ? 'cerca de ' + ap : mejor ? 'cerca de ' + mejor : 'a ' + distKm(cfg.lat, cfg.lon, lat, lon).toFixed(0) + ' km de vos';
+  }
+  function horaCorta(ms) {
+    var f = new Date(ms);
+    return ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2);
+  }
+  // Una línea de estado para el avión seguido: { texto, clase, ampliar (km) }
+  function estadoSeguimiento(a, ahora) {
+    var d = a.d, edad = (ahora - a.t0) / 1000;
+    if (edad > SIN_SENAL_S) return { texto: 'Sin señal hace ' + Math.round(edad) + ' s · posición estimada', clase: 'aviso' };
+    if (!a.dentro) {
+      var siguiente = RANGOS.filter(function (r) { return r >= a.dist * 1.05; })[0];
+      return { texto: 'Fuera del radar · a ' + a.dist.toFixed(0) + ' km', clase: 'aviso', ampliar: siguiente };
+    }
+    if (d.gnd) {
+      if (a.aterrizo && ahora - a.aterrizo.hora < 15 * 60000)
+        return { texto: '🛬 Aterrizó' + (a.aterrizo.ap ? ' en ' + a.aterrizo.ap : '') + ' a las ' + horaCorta(a.aterrizo.hora), clase: 'ok' };
+      var ap = aeropuertoCercano(d.lat, d.lon);
+      return { texto: 'En tierra' + (ap ? ' en ' + ap : ''), clase: 'ok' };
+    }
+    if (a.despego && ahora - a.despego.hora < 10 * 60000)
+      return { texto: '🛫 Despegó' + (a.despego.ap ? ' de ' + a.despego.ap : '') + ' a las ' + horaCorta(a.despego.hora), clase: 'ok' };
+    return null;
+  }
+  function htmlEstado(e) {
+    if (!e) return '';
+    return '<div class="estado-seg ' + e.clase + '">' + esc(e.texto) +
+      (e.ampliar ? ' <button class="ampliar" data-km="' + e.ampliar + '">Ampliar a ' + e.ampliar + ' km</button>' : '') + '</div>';
+  }
+  function cambiarAlcance(km) {
+    cfg.km = km;
+    guardar();
+    renderRangos();
+    construirFondo();
+    calcularPosiciones(Date.now());
+    calcularEstelas();
+    renderPanel();
+    pedir();
+  }
+
   function renderPanel() {
     var enRadio = lista.filter(function (a) { return a.mostrar; })
       .sort(function (a, b) { return a.dist - b.dist; });
@@ -733,12 +820,26 @@
     }).join('') : '<li class="vacio">' + (estado === 'cargando' ? 'Buscando aviones…' : 'No hay aviones en este radio') + '</li>');
 
     var a = seleccion && aviones[seleccion];
-    renderDetalleRedondo(a);
+    var ahora = Date.now();
+    renderDetalleRedondo(a, ahora);
+    if (!a && perdido && perdido.d.hex === seleccion) {
+      var pd = perdido.d;
+      poner('detalle', 'className', 'detalle perdido');
+      poner('detalle', 'innerHTML',
+        '<button class="cerrar" title="Cerrar">✕</button>' +
+        '<div class="cs">' + esc(nombre(pd)) + '</div>' +
+        (rutaCorta(pd) ? '<div class="ruta">' + esc(rutaCorta(pd).replace('→', ' → ')) + '</div>' : '') +
+        '<div class="estado-seg aviso">Señal perdida a las ' + horaCorta(perdido.hora) + ' ' + esc(lugarCercano(perdido.lat, perdido.lon)) + '</div>' +
+        '<div class="tipo">Último dato: ' + altTexto(pd) + (pd.gs != null ? ' · ' + miles(pd.gs * 1.852) + ' km/h' : '') +
+        '. Si vuelve a aparecer, se sigue solo.</div>');
+      return;
+    }
     if (!a) {
       poner('detalle', 'className', 'detalle vacio');
       poner('detalle', 'innerHTML', 'Tocá un avión para ver el detalle');
       return;
     }
+    var est = estadoSeguimiento(a, ahora);
     var d = a.d;
     var tipo = d.desc ? d.desc + (d.tipo ? ' (' + d.tipo + ')' : '') : (d.tipo || 'Tipo desconocido');
     var r = d.cs && rutas[d.cs];
@@ -747,8 +848,9 @@
     var vr = d.vr == null || Math.abs(d.vr) < 100 ? 'Nivelado' : (d.vr > 0 ? '↑ ' : '↓ ') + miles(Math.abs(d.vr)) + ' ft/min';
     poner('detalle', 'className', 'detalle');
     poner('detalle', 'innerHTML',
+      '<button class="cerrar" title="Dejar de seguir">✕</button>' +
       '<div class="cs' + (esEmerg(d) ? ' emerg' : '') + '">' + esc(nombre(d)) + '</div>' +
-      rutaHtml +
+      rutaHtml + htmlEstado(est) +
       '<div class="tipo">' + esc(tipo) + '</div>' +
       '<div class="grid">' +
       '<span>Altitud <b>' + altTexto(d) + '</b></span>' +
@@ -763,14 +865,22 @@
   }
 
   // Tarjeta compacta para pantalla redonda (como los radares de escritorio)
-  function renderDetalleRedondo(a) {
+  function renderDetalleRedondo(a, ahora) {
     if (!REDONDO) return;
+    if (!a && perdido && perdido.d.hex === seleccion) {
+      poner('r-detalle', 'className', 'r-detalle perdido');
+      poner('r-detalle', 'innerHTML', '<b>' + esc(nombre(perdido.d)) + '</b><br>Señal perdida ' + horaCorta(perdido.hora) + '<br>' +
+        esc(lugarCercano(perdido.lat, perdido.lon)));
+      return;
+    }
     if (!a) { poner('r-detalle', 'className', 'r-detalle oculto'); return; }
     var d = a.d;
     var ruta = rutaCorta(d);
+    var est = estadoSeguimiento(a, ahora);
     poner('r-detalle', 'className', 'r-detalle');
     poner('r-detalle', 'innerHTML',
       '<b>' + esc(nombre(d)) + '</b>' + (ruta ? ' <span class="ruta">' + esc(ruta) + '</span>' : '') + '<br>' +
+      (est ? '<span class="estado-seg ' + est.clase + '">' + esc(est.texto) + '</span><br>' : '') +
       esc(d.desc || d.tipo || '') + '<br>' +
       altTexto(d) + (d.trk != null ? ' · RUMBO ' + Math.round(d.trk) + '°' : '') + '<br>' +
       (d.gs != null ? miles(d.gs * 1.852) + ' km/h · ' : '') + a.dist.toFixed(1) + ' km');
@@ -803,7 +913,14 @@
       if (dd < mejorD) { mejorD = dd; mejor = a.d.hex; }
     });
     seleccion = mejor;
+    perdido = null;
     renderPanel();
+  });
+
+  $('detalle').addEventListener('click', function (e) {
+    if (e.target.closest('.cerrar')) { seleccion = null; perdido = null; renderPanel(); return; }
+    var b = e.target.closest('button.ampliar');
+    if (b) cambiarAlcance(Number(b.getAttribute('data-km')));
   });
 
   $('lista').addEventListener('click', function (e) {
@@ -811,20 +928,14 @@
     if (!li) return;
     var h = li.getAttribute('data-hex');
     seleccion = seleccion === h ? null : h;
+    perdido = null;
     renderPanel();
   });
 
   $('rangos').addEventListener('click', function (e) {
     var b = e.target.closest('button[data-km]');
     if (!b) return;
-    cfg.km = Number(b.getAttribute('data-km'));
-    guardar();
-    renderRangos();
-    construirFondo();
-    calcularPosiciones(Date.now());
-    calcularEstelas();
-    renderPanel();
-    pedir();
+    cambiarAlcance(Number(b.getAttribute('data-km')));
   });
 
   function ubicar() {
@@ -899,14 +1010,7 @@
   $('r-aj').addEventListener('click', abrirAjustes);
   // En pantalla redonda, tocar el alcance pasa al siguiente
   $('r-rango').addEventListener('click', function () {
-    cfg.km = RANGOS[(RANGOS.indexOf(cfg.km) + 1) % RANGOS.length];
-    guardar();
-    renderRangos();
-    construirFondo();
-    calcularPosiciones(Date.now());
-    calcularEstelas();
-    renderPanel();
-    pedir();
+    cambiarAlcance(RANGOS[(RANGOS.indexOf(cfg.km) + 1) % RANGOS.length]);
   });
   $('ajustes').addEventListener('change', leerAjustes);
   $('aj-cerrar').addEventListener('click', function () {

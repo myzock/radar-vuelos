@@ -15,6 +15,12 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 - Detalle al tocar un avión: tipo, matrícula, altitud, velocidad, rumbo, distancia, régimen vertical y squawk, más una línea con dónde va a estar en 2 minutos
 - Referencias de AEP, EZE, San Fernando y El Palomar
 - Lista de vuelos ordenada por distancia y reloj
+- **Seguimiento de un vuelo:** el avión que tocás se sigue aunque aterrice, salga del radar o pierda la señal:
+  - Ignora los filtros (lo ves aunque esté en tierra)
+  - Avisa cuando aterriza o despega, indicando el aeropuerto
+  - Si se aleja, muestra la distancia y un botón para ampliar el alcance; el proxy lo sigue buscando por su código aunque esté fuera del área
+  - Si deja de transmitir, indica hace cuánto y atenúa el ícono; si se pierde, marca su última posición y cerca de dónde fue
+  - Si vuelve a aparecer, lo retoma solo
 - **Alertas** visuales y sonoras ante squawk de emergencia (7700/7600/7500) o cuando aparece algo de tu lista: tipos (A388, B748…), matrículas o aerolíneas
 - **Filtros:** ocultar aviones en tierra o mostrar solo hasta cierta altitud
 - **Modo noche** automático (23 a 7 por defecto): baja el brillo al 30% y oculta etiquetas
