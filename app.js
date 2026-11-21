@@ -229,6 +229,9 @@
       .then(function (j) {
         var rr = j.rutas || {};
         for (var cs in rr) rutas[cs] = rr[cs];
+        // los que no vinieron (falló la consulta) se reintentan en un minuto
+        var sinRespuesta = faltan.filter(function (c) { return !(c in rr); });
+        if (sinRespuesta.length) setTimeout(function () { sinRespuesta.forEach(function (c) { delete rutasPedidas[c]; }); }, 60000);
         renderPanel();
       })
       .catch(function (e) {
