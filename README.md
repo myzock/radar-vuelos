@@ -4,7 +4,7 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 
 **App:** https://radar-vuelos-sigma.vercel.app · **Demo con datos simulados:** https://radar-vuelos-sigma.vercel.app/?demo
 
-![Radar de vuelos](docs/captura.png)
+![Radar de vuelos siguiendo un Emirates 777 de Newark a Atenas, con datos reales](docs/captura.png)
 
 ## Qué muestra
 
@@ -33,7 +33,7 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 - La primera vez pide la ubicación del dispositivo; si no la dan, arranca en el Obelisco
 - **Se actualiza sola:** cada 5 minutos se fija si hay una versión nueva publicada y recarga la página
 
-| Buenos Aires (100 km) | Nueva York (50 km) |
+| Buenos Aires: GOL 7666 Río → Ezeiza | Nueva York: Emirates Newark → Atenas |
 |---|---|
 | ![Buenos Aires](docs/mapa-buenos-aires.png) | ![Nueva York](docs/mapa-nueva-york.png) |
 

@@ -198,6 +198,7 @@
   function altTexto(d) {
     if (d.gnd) return T('enTierra');
     if (d.alt == null) return '—';
+    if (d.alt < 0) return aviacion() ? '0 ft' : '0 m'; // la altitud barométrica puede dar negativa cerca del nivel del mar
     if (aviacion()) return d.alt >= 18000 ? 'FL' + ('00' + Math.round(d.alt / 100)).slice(-3) : fmtNum(d.alt) + ' ft';
     return fmtNum(d.alt * 0.3048) + ' m';
   }
