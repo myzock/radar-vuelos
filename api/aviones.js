@@ -83,11 +83,17 @@ module.exports = async (req, res) => {
       // (así no se suman dos consultas seguidas a la misma API y su límite de uso)
       const hex = String(q.hex || '').toLowerCase();
       if (/^[0-9a-f]{6}$/.test(hex) && !lista.some((x) => String(x.hex || '').toLowerCase() === hex)) {
-        const otra = FUENTES[(idx + 1) % FUENTES.length];
-        try {
-          const extra = await traer(otra, 0, 0, 0, otra.hex(hex));
-          extra.forEach((x) => lista.push(x));
-        } catch (e) { /* si falla, la app lo marca como sin señal */ }
+        for (let k = 1; k <= FUENTES.length; k++) {
+          const otra = FUENTES[(idx + k) % FUENTES.length];
+          try {
+            const extra = await traer(otra, 0, 0, 0, otra.hex(hex));
+            const encontrado = extra.filter((x) => String(x.hex || '').toLowerCase() === hex);
+            if (encontrado.length) { encontrado.forEach((x) => lista.push(x)); break; }
+            errores.push(`${otra.nombre} hex: no lo tiene`);
+          } catch (e) {
+            errores.push(`${otra.nombre} hex: ${String((e && e.message) || e)}`); // si nadie lo tiene, la app lo marca sin señal
+          }
+        }
       }
       // Cache en el CDN de Vercel: varias consultas seguidas no le pegan a la API
       res.setHeader('Cache-Control', 's-maxage=4, stale-while-revalidate=20');
@@ -95,6 +101,7 @@ module.exports = async (req, res) => {
         fuente: f.nombre,
         ts: Date.now(),
         aviones: lista.map(normalizar).filter((a) => a && a.hex),
+        ...(q.debug ? { errores } : {}),
       });
       return;
     } catch (e) {
