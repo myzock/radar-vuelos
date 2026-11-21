@@ -9,8 +9,9 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 ## Qué muestra
 
 - Aviones en un radar circular con alcance de 10 a 200 km, coloreados por altitud (rojo = squawk de emergencia)
+- Escala de colores de altitud a la vista, y la hora con su zona horaria (GMT-3)
 - Origen y destino de cada vuelo (ej. `ARG1633 · BRC → AEP`)
-- **Mapa de fondo en cualquier lugar del mundo:** costa, ríos, límites de países y provincias (en Buenos Aires se ve el contorno de CABA), ciudades, aeropuertos y pistas reales con su ancho
+- **Mapa de fondo en cualquier lugar del mundo:** tierra y agua pintadas en tonos muy oscuros (aptos para OLED), costa, ríos, límites de países y provincias (en Buenos Aires se ve el contorno de CABA), ciudades, aeropuertos y pistas reales con su ancho
 - Estelas con el recorrido reciente y movimiento suave entre actualizaciones (se extrapola con velocidad y rumbo)
 - Detalle al tocar un avión: tipo, matrícula, altitud, velocidad, rumbo, distancia, régimen vertical y squawk, más una línea con dónde va a estar en 2 minutos
 - Referencias de AEP, EZE, San Fernando y El Palomar
@@ -48,7 +49,7 @@ Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.
 - **Frontend:** HTML + CSS + JavaScript sin frameworks ni build, compatible con navegadores viejos (probado para Chrome 106 / Android 6).
 - **Proxy (`api/aviones.js`):** función serverless que consulta las APIs públicas en orden (airplanes.live quedó afuera porque rechaza las consultas desde Vercel), con respaldo si una falla, normaliza la respuesta y la cachea unos segundos en el CDN para no pasarse de los límites de uso.
 - **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign, con [adsbdb.com](https://www.adsbdb.com) de respaldo; se cachean una hora.
-- **Mapa (`mapa/`):** 5.259 mosaicos estáticos de 2°×2° (11 MB en total). La app baja solo los de su zona (unos 12) y arma el fondo una vez. Se regeneran con `herramientas/generar_mapa.py` a partir de Natural Earth 1:10m y OurAirports.
+- **Mapa (`mapa/`):** 7.197 mosaicos estáticos de 2°×2° (unos 20 MB en total), con polígonos de tierra y lagos además de las líneas. La app baja solo los de su zona (unos 12) y arma el fondo una vez. Se regeneran con `herramientas/generar_mapa.py` a partir de Natural Earth 1:10m y OurAirports.
 - **Versión (`api/version.js`):** devuelve el commit publicado, para la actualización automática.
 - La app consulta las APIs **directamente desde el navegador** cuando lo permiten (cada 6 s), sin pasar por Vercel. Si no puede, usa el proxy cada 10 s (30 s en modo noche) y vuelve a probar la vía directa cada 30 minutos. Las funciones corren en `gru1` (São Paulo) para menor latencia desde Argentina.
 

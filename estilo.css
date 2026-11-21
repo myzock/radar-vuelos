@@ -166,3 +166,23 @@ body.redondo .buscar { display: none; }
   #lista .num.a { width: 64px; }
   #lista .num.d { width: 50px; }
 }
+
+/* Escala de colores de altitud */
+.leyenda {
+  position: absolute; left: 12px; bottom: 12px; z-index: 4; pointer-events: none;
+  background: rgba(0,0,0,.72); border: 1px solid #0f3a40; border-radius: 10px;
+  padding: 7px 10px 6px; font-size: 12px; color: #a9c9c4; line-height: 1.55;
+}
+.ley-titulo { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #5f938c; margin-bottom: 2px; }
+.ley-fila { display: flex; align-items: center; gap: 7px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ley-color { width: 11px; height: 11px; border-radius: 3px; flex: 0 0 auto; }
+body.redondo .leyenda { display: none; }
+@media (max-width: 1100px), (max-height: 680px) {
+  .leyenda { left: 6px; bottom: 6px; padding: 5px 8px 4px; font-size: 10.5px; line-height: 1.45; }
+  .ley-titulo { font-size: 9.5px; }
+  .ley-color { width: 9px; height: 9px; }
+}
+
+/* Hora con zona horaria */
+.hora { display: flex; align-items: baseline; gap: 8px; }
+#zona-horaria { font-size: 13px; color: #5f938c; letter-spacing: .5px; }

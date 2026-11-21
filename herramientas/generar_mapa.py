@@ -1,4 +1,6 @@
 """Genera mosaicos estáticos de mapa (2°x2°) para radar-vuelos.
+Capas: c costa, f países, p provincias, r ríos, l tierra (polígonos), w lagos (polígonos),
+ci ciudades, a aeropuertos, pi pistas.
 Uso: python3 generar_mapa.py <carpeta_datos> <carpeta_salida>"""
 import json, csv, sys, os, math
 from collections import defaultdict
@@ -56,6 +58,67 @@ agregar_lineas('f', lineas_geojson('ne_10m_admin_0_boundary_lines_land.geojson')
 agregar_lineas('p', lineas_geojson('ne_10m_admin_1_states_provinces_lines.geojson'), 0.003)
 agregar_lineas('r', lineas_geojson('ne_10m_rivers_lake_centerlines.geojson'), 0.003)
 
+# ---- Polígonos de tierra y lagos (para pintar tierra y agua) ----
+# Cada anillo se recorta a los mosaicos partiendo el área en mitades sucesivas
+# (recorte de Sutherland-Hodgman contra un semiplano por vez): O(n·log mosaicos).
+def recortar(anillo, eje, valor, menor):
+    """Recorta un anillo [(lon, lat), ...] al semiplano coord[eje] <= valor (menor=True) o >= valor."""
+    if not anillo: return []
+    dentro = (lambda p: p[eje] <= valor) if menor else (lambda p: p[eje] >= valor)
+    def corte(a, b):
+        t = (valor - a[eje]) / (b[eje] - a[eje])
+        return (a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]))
+    salida = []
+    prev = anillo[-1]
+    for cur in anillo:
+        if dentro(cur):
+            if not dentro(prev): salida.append(corte(prev, cur))
+            salida.append(cur)
+        elif dentro(prev):
+            salida.append(corte(prev, cur))
+        prev = cur
+    return salida
+
+SOLAPE = 0.01  # grados: los mosaicos vecinos se pisan apenas, así no quedan rendijas al pintar
+
+def repartir(capa, anillo, lon0, lon1, lat0, lat1):
+    """Reparte un anillo entre los mosaicos de [lon0,lon1]x[lat0,lat1] (bordes alineados a la grilla)."""
+    if len(anillo) < 3: return
+    nlon, nlat = round((lon1 - lon0) / T), round((lat1 - lat0) / T)
+    if nlon <= 1 and nlat <= 1:
+        capas[tile(lat0 + T / 2, lon0 + T / 2)][capa].append(anillo)
+        return
+    if nlon >= nlat:
+        m = lon0 + (nlon // 2) * T
+        repartir(capa, recortar(anillo, 0, m + SOLAPE, True), lon0, m, lat0, lat1)
+        repartir(capa, recortar(anillo, 0, m - SOLAPE, False), m, lon1, lat0, lat1)
+    else:
+        m = lat0 + (nlat // 2) * T
+        repartir(capa, recortar(anillo, 1, m + SOLAPE, True), lon0, lon1, lat0, m)
+        repartir(capa, recortar(anillo, 1, m - SOLAPE, False), lon0, lon1, m, lat1)
+
+def agregar_poligonos(capa, nombre, eps):
+    g = json.load(open(os.path.join(DATOS, nombre)))
+    for f in g['features']:
+        geo = f['geometry']
+        if not geo: continue
+        polis = [geo['coordinates']] if geo['type'] == 'Polygon' else geo['coordinates'] if geo['type'] == 'MultiPolygon' else []
+        for poli in polis:
+            for anillo in poli:   # el exterior y los huecos: al pintar con "evenodd" los huecos quedan vacíos
+                a = dp([tuple(p[:2]) for p in anillo[:-1]], eps)
+                if len(a) < 3: continue
+                lons = [p[0] for p in a]; lats = [p[1] for p in a]
+                lon0 = math.floor((min(lons) + 180) / T) * T - 180; lon1 = math.ceil((max(lons) + 180) / T) * T - 180
+                lat0 = math.floor((min(lats) + 90) / T) * T - 90;  lat1 = math.ceil((max(lats) + 90) / T) * T - 90
+                lat0, lat1 = max(lat0, -90), min(lat1, 90)
+                if lon1 == lon0: lon1 += T
+                if lat1 == lat0: lat1 += T
+                repartir(capa, a, lon0, lon1, lat0, lat1)
+
+agregar_poligonos('l', 'ne_10m_land.geojson', 0.002)
+agregar_poligonos('l', 'ne_10m_minor_islands.geojson', 0.002)
+agregar_poligonos('w', 'ne_10m_lakes.geojson', 0.002)
+
 # Ciudades
 g = json.load(open(os.path.join(DATOS, 'ne_10m_populated_places_simple.geojson')))
 for f in g['features']:
@@ -88,7 +151,7 @@ total = 0
 for (ti, tj), cs in capas.items():
     out = {}
     for k, v in cs.items():
-        if k in ('c', 'f', 'p', 'r'):
+        if k in ('c', 'f', 'p', 'r', 'l', 'w'):
             out[k] = [[round(x, 4) for pt in l for x in (pt[1], pt[0])] for l in v]  # lat, lon
         else:
             out[k] = v

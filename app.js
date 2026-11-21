@@ -13,7 +13,7 @@
   // Capas: c costa, f límites de países, p provincias/estados, r ríos,
   //        ci ciudades [nombre, lat, lon, población], a aeropuertos [código, lat, lon, nivel], pi pistas
   var MOSAICO = 2;
-  var GEO = { c: [], f: [], p: [], r: [], ci: [], a: [], pi: [] };
+  var GEO = { c: [], f: [], p: [], r: [], l: [], w: [], ci: [], a: [], pi: [], cargado: false };
   var mosaicos = {}; // cache: clave -> datos (o {} si no hay nada en ese mosaico)
 
   var params = new URLSearchParams(location.search);
@@ -83,6 +83,7 @@
       ajVigilar: 'Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)',
       ajNota: 'Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.',
       listo: 'Listo', titulo: 'Radar de vuelos',
+      leyAltitud: 'Altitud', leyTierra: 'En tierra', leyEmerg: 'Emergencia',
       ajCentro: '📌 Elegir el centro tocando el radar', tocaCentro: 'Tocá el radar en el punto que querés como centro', centroListo: '📌 Centro actualizado'
     },
     en: {
@@ -114,6 +115,7 @@
       ajVigilar: 'Alert me when it shows up (types, registrations or airlines, comma separated)',
       ajNota: 'Examples: A388 (type), N123AB (registration), KLM (airline). Emergencies (7700/7600/7500) are always alerted.',
       listo: 'Done', titulo: 'Flight radar',
+      leyAltitud: 'Altitude', leyTierra: 'On ground', leyEmerg: 'Emergency',
       ajCentro: '📌 Pick the center on the radar', tocaCentro: 'Tap the radar where you want the center', centroListo: '📌 Center updated'
     }
   };
@@ -156,6 +158,24 @@
     if (d.alt == null || d.gnd) return '';
     return aviacion() ? fmtNum(d.alt * 0.3048) + ' m' : fmtNum(d.alt) + ' ft';
   }
+  // Escala de colores: los mismos cortes que colorAlt() (en pies: 3.000 / 10.000 / 25.000)
+  function renderLeyenda() {
+    var av = aviacion();
+    function alt(ft) { return av ? fmtNum(ft) : fmtNum(Math.round(ft * 0.3048 / 100) * 100); }
+    var u = av ? ' ft' : ' m';
+    var filas = [
+      ['#5fe3ff', '+' + alt(25000) + u],
+      ['#7dff9a', alt(10000) + '–' + alt(25000) + u],
+      ['#ffe066', alt(3000) + '–' + alt(10000) + u],
+      ['#ffb347', '< ' + alt(3000) + u],
+      ['#8a9a9a', T('leyTierra')],
+      ['#ff4d4d', T('leyEmerg')]
+    ];
+    $('leyenda').innerHTML = '<div class="ley-titulo">' + T('leyAltitud') + '</div>' + filas.map(function (f) {
+      return '<div class="ley-fila"><span class="ley-color" style="background:' + f[0] + '"></span>' + f[1] + '</div>';
+    }).join('');
+  }
+
   function aplicarIdioma() {
     document.documentElement.lang = LANG;
     document.title = T('titulo');
@@ -167,6 +187,7 @@
     }
     var ph = document.querySelectorAll('[data-tp]');
     for (var j = 0; j < ph.length; j++) ph[j].placeholder = T(ph[j].getAttribute('data-tp'));
+    renderLeyenda();
   }
 
   resolverIdioma();
@@ -611,11 +632,9 @@
     fondo.width = cv.width; fondo.height = cv.height;
     var x = fondo.getContext('2d');
     x.setTransform(DPR, 0, 0, DPR, 0, 0);
-    // OLED: negro puro (#000 = píxel apagado). Solo un halo muy tenue en el centro.
+    // OLED: negro puro (#000 = píxel apagado) fuera del radar
     x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
-    var gr = x.createRadialGradient(CX, CY, 0, CX, CY, R * 0.6);
-    gr.addColorStop(0, 'rgba(20,90,90,.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    x.fillStyle = gr; x.beginPath(); x.arc(CX, CY, R * 0.6, 0, TAU); x.fill();
+    dibujarRellenos(x); // agua y tierra, debajo de anillos y contornos
 
     x.lineWidth = 1; x.strokeStyle = 'rgba(120,230,215,.32)';
     for (var k = 1; k <= 3; k++) { x.beginPath(); x.arc(CX, CY, R * k / 4, 0, TAU); x.stroke(); }
@@ -638,6 +657,34 @@
 
     dibujarMapa(x);
     x.fillStyle = '#ffffff'; x.beginPath(); x.arc(CX, CY, 3, 0, TAU); x.fill();
+  }
+
+  // Agua y tierra pintadas (tonos muy oscuros: en OLED casi no encienden píxeles).
+  // Primero todo el círculo como agua y encima los polígonos de tierra; los lagos, otra vez agua.
+  var COLOR_AGUA = '#06182a', COLOR_TIERRA = '#101416';
+  function dibujarRellenos(x) {
+    if (!GEO.cargado) return; // sin mapa todavía: queda negro
+    function trazar(anillos) {
+      x.beginPath();
+      for (var a = 0; a < anillos.length; a++) {
+        var r = anillos[a];
+        for (var i = 0; i < r.length; i += 2) {
+          var p = aXY(r[i], r[i + 1]), X = CX + p.x * ESCALA, Y = CY - p.y * ESCALA;
+          if (i) x.lineTo(X, Y); else x.moveTo(X, Y);
+        }
+        x.closePath();
+      }
+    }
+    x.save();
+    x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.clip();
+    x.fillStyle = COLOR_AGUA; x.fillRect(CX - R, CY - R, R * 2, R * 2);
+    // Cada mosaico se pinta por separado con "evenodd" (los huecos de un polígono quedan como agua).
+    // Los mosaicos vienen con un solape mínimo, así no quedan rendijas entre vecinos.
+    x.fillStyle = COLOR_TIERRA;
+    GEO.l.forEach(function (grupo) { trazar(grupo); x.fill('evenodd'); });
+    x.fillStyle = COLOR_AGUA;
+    GEO.w.forEach(function (grupo) { trazar(grupo); x.fill('evenodd'); });
+    x.restore();
   }
 
   // Contornos del mapa: todo recortado al círculo y dibujado una sola vez en la capa de fondo
@@ -716,8 +763,15 @@
         .then(function (d) { if (d) mosaicos[k] = d; return d || {}; });
     })).then(function (lista) {
       if (origen !== cfg.lat + ',' + cfg.lon) return; // la ubicación cambió mientras bajaba
-      var g = { c: [], f: [], p: [], r: [], ci: [], a: [], pi: [] };
-      lista.forEach(function (d) { for (var k in g) if (d[k]) g[k] = g[k].concat(d[k]); });
+      var g = { c: [], f: [], p: [], r: [], l: [], w: [], ci: [], a: [], pi: [] };
+      lista.forEach(function (d) {
+        for (var k in g) {
+          if (!d[k]) continue;
+          // tierra y lagos se guardan agrupados por mosaico: cada grupo se pinta por separado
+          if (k === 'l' || k === 'w') g[k].push(d[k]); else g[k] = g[k].concat(d[k]);
+        }
+      });
+      g.cargado = true;
       GEO = g;
       construirFondo();
     });
@@ -1226,6 +1280,9 @@
     var hm = ('0' + f.getHours()).slice(-2) + ':' + ('0' + f.getMinutes()).slice(-2);
     poner('reloj', 'textContent', hm);
     poner('r-reloj', 'textContent', hm);
+    // Zona horaria del dispositivo (ej. GMT-3, GMT+5:30)
+    var off = -f.getTimezoneOffset(), h = Math.floor(Math.abs(off) / 60), m = Math.abs(off) % 60;
+    poner('zona-horaria', 'textContent', 'GMT' + (off === 0 ? '' : (off > 0 ? '+' : '-') + h + (m ? ':' + ('0' + m).slice(-2) : '')));
   }
 
   // ---------------- Interacción ----------------

@@ -32,6 +32,8 @@
     <canvas id="capa-barrido"></canvas>
     <canvas id="capa-borde" class="capa"></canvas>
     <canvas id="radar" class="capa"></canvas>
+    <!-- Escala de colores por altitud (se completa desde app.js según unidades e idioma) -->
+    <div id="leyenda" class="leyenda"></div>
     <!-- Controles para pantallas redondas (modo ?redondo) -->
     <div id="r-ui">
       <div class="r-arriba"><span id="r-estado" class="pill cargando">…</span><span id="r-reloj">--:--</span></div>
@@ -41,7 +43,7 @@
   </div>
   <aside id="panel">
     <header>
-      <div id="reloj">--:--</div>
+      <div class="hora"><span id="reloj">--:--</span><span id="zona-horaria"></span></div>
       <div class="estado">
         <span id="pill" class="pill cargando" data-t="cargando">Conectando</span>
         <span id="fuente"></span>
