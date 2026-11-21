@@ -116,10 +116,16 @@
       vistos[d.hex] = true;
       var a = aviones[d.hex];
       if (!a) {
-        a = aviones[d.hex] = { estela: [] };
+        a = aviones[d.hex] = { estela: [], hist: [] };
       } else if (a.d && (a.d.lat !== d.lat || a.d.lon !== d.lon)) {
         a.estela.push({ lat: a.d.lat, lon: a.d.lon });
         if (a.estela.length > 12) a.estela.shift();
+      }
+      // Recorrido completo desde que entró al radar (para dibujar el vuelo del seleccionado)
+      var ult = a.hist[a.hist.length - 1];
+      if (!ult || ult.lat !== d.lat || ult.lon !== d.lon) {
+        a.hist.push({ lat: d.lat, lon: d.lon, alt: d.alt, gnd: d.gnd });
+        if (a.hist.length > 600) a.hist.shift(); // ~1 hora a 6 s
       }
       // Aterrizajes y despegues (se avisa solo del avión que estás siguiendo)
       if (a.d && !a.d.gnd && d.gnd) {
@@ -157,18 +163,78 @@
   }
 
   // ---------------- Datos ----------------
+  // Para no gastar el plan gratuito de Vercel, la tablet consulta las APIs DIRECTAMENTE
+  // cuando el navegador lo permite (CORS). El proxy /api/aviones queda de respaldo.
+  var DIRECTAS = [
+    { nombre: 'adsb.fi', zona: function (la, lo, nm) { return 'https://opendata.adsb.fi/api/v2/lat/' + la + '/lon/' + lo + '/dist/' + nm; },
+      hex: function (h) { return 'https://opendata.adsb.fi/api/v2/hex/' + h; } },
+    { nombre: 'adsb.lol', zona: function (la, lo, nm) { return 'https://api.adsb.lol/v2/lat/' + la + '/lon/' + lo + '/dist/' + nm; },
+      hex: function (h) { return 'https://api.adsb.lol/v2/hex/' + h; } }
+  ];
+  var directaFalla = {};        // nombre -> momento en que falló (se reintenta a los 30 min)
+  var usandoProxy = false;
+  var REINTENTO_DIRECTO_MS = 30 * 60000;
+
+  function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
+  function primero() { for (var i = 0; i < arguments.length; i++) if (arguments[i] != null) return arguments[i]; return null; }
+  // Mismo formato que devuelve el proxy (ver api/aviones.js)
+  function normalizar(x) {
+    if (!x || num(x.lat) === null || num(x.lon) === null || !x.hex) return null;
+    var tierra = x.alt_baro === 'ground';
+    return {
+      hex: String(x.hex).replace('~', ''), cs: String(x.flight || '').trim(), reg: x.r || '', tipo: x.t || '', desc: x.desc || '',
+      lat: x.lat, lon: x.lon, alt: tierra ? 0 : primero(num(x.alt_baro), num(x.alt_geom)), gnd: tierra,
+      gs: num(x.gs), trk: primero(num(x.track), num(x.true_heading)), vr: primero(num(x.baro_rate), num(x.geom_rate)),
+      sq: x.squawk || '', seen: primero(num(x.seen_pos), num(x.seen), 0)
+    };
+  }
+  function traerJson(url, ms) {
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var to = setTimeout(function () { if (ctrl) ctrl.abort(); }, ms);
+    return fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { clearTimeout(to); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); },
+            function (e) { clearTimeout(to); throw e; });
+  }
+  function pedirDirecto() {
+    var ahora = Date.now();
+    var disponibles = DIRECTAS.filter(function (f) { return !(directaFalla[f.nombre] && ahora - directaFalla[f.nombre] < REINTENTO_DIRECTO_MS); });
+    var nm = Math.min(250, Math.ceil(cfg.km * 1.15 / 1.852));
+    var la = cfg.lat.toFixed(3), lo = cfg.lon.toFixed(3);
+    function intentar(i) {
+      if (i >= disponibles.length) return Promise.reject(new Error('sin fuentes directas'));
+      var f = disponibles[i];
+      return traerJson(f.zona(la, lo, nm), 8000).then(function (j) {
+        var l = j.ac || j.aircraft;
+        if (!Array.isArray(l)) throw new Error('respuesta sin aviones');
+        var res = { fuente: f.nombre, aviones: l.map(normalizar).filter(Boolean) };
+        // el avión seguido, si se fue del área, se busca por su código en la otra fuente
+        if (!seleccion || res.aviones.some(function (a) { return a.hex === seleccion; })) return res;
+        var otra = DIRECTAS[(DIRECTAS.indexOf(f) + 1) % DIRECTAS.length];
+        return traerJson(otra.hex(seleccion), 6000).then(function (jh) {
+          (jh.ac || jh.aircraft || []).map(normalizar).filter(Boolean).forEach(function (a) { if (a.hex === seleccion) res.aviones.push(a); });
+          return res;
+        }, function () { return res; });
+      }, function (e) {
+        directaFalla[f.nombre] = Date.now(); // CORS bloqueado o caída: probar la siguiente
+        return intentar(i + 1);
+      });
+    }
+    return intentar(0);
+  }
+  function pedirProxy() {
+    var url = '/api/aviones?lat=' + cfg.lat.toFixed(3) + '&lon=' + cfg.lon.toFixed(3) + '&km=' + Math.ceil(cfg.km * 1.15) +
+      (seleccion ? '&hex=' + seleccion : ''); // el seguido se pide aparte por si se va del área
+    return traerJson(url, 9000);
+  }
+
   function pedir() {
     if (DEMO || pidiendo || document.hidden) return;
     pidiendo = true;
-    var radio = Math.ceil(cfg.km * 1.15);
-    var url = '/api/aviones?lat=' + cfg.lat.toFixed(3) + '&lon=' + cfg.lon.toFixed(3) + '&km=' + radio +
-      (seleccion ? '&hex=' + seleccion : ''); // el seguido se pide aparte por si se va del área
-    var ctrl = window.AbortController ? new AbortController() : null;
-    var to = setTimeout(function () { if (ctrl) ctrl.abort(); }, 9000);
-    fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    pedirDirecto()
+      .then(function (r) { usandoProxy = false; return r; },
+            function () { usandoProxy = true; return pedirProxy(); })
       .then(function (j) {
-        fuente = j.fuente || '';
+        fuente = (j.fuente || '') + (usandoProxy ? ' (proxy)' : '');
         estado = 'live';
         ultimaOK = Date.now();
         integrar(j.aviones || [], Date.now());
@@ -178,10 +244,18 @@
         console.warn('Radar: error al pedir datos', e);
       })
       .then(function () {
-        clearTimeout(to);
         pidiendo = false;
         actualizarEstado();
       });
+  }
+  // Intervalo: directo cada 6 s; por el proxy (cuenta en Vercel) cada 10 s, o 30 s en modo noche
+  function intervaloActual() {
+    if (!usandoProxy) return INTERVALO_MS;
+    return nocheActiva ? 30000 : 10000;
+  }
+  function cicloPedidos() {
+    pedir();
+    setTimeout(cicloPedidos, intervaloActual());
   }
 
   // ---------------- Modo demo ----------------
@@ -232,6 +306,8 @@
   var rutas = {};      // callsign -> {o, d, on, dn, ok} | null (sin ruta conocida)
   var rutasPedidas = {};
   var DEMO_RUTAS = [['AEP', 'COR'], ['SCL', 'AEP'], ['EZE', 'GRU'], ['AEP', 'MDZ'], ['EZE', 'MAD'], ['GIG', 'EZE'], ['AEP', 'BRC'], ['EZE', 'MIA']];
+  var DEMO_AP = { AEP: [-34.559, -58.416], EZE: [-34.822, -58.536], COR: [-31.32, -64.21], SCL: [-33.393, -70.786], GRU: [-23.435, -46.473],
+    MDZ: [-32.832, -68.793], MAD: [40.472, -3.561], GIG: [-22.81, -43.25], BRC: [-41.151, -71.158], MIA: [25.795, -80.287] };
   function pedirRutas() {
     var faltan = [];
     for (var i = 0; i < lista.length && faltan.length < 40; i++) {
@@ -240,7 +316,10 @@
     }
     if (!faltan.length) return;
     if (DEMO) {
-      faltan.forEach(function (cs, i) { var r = DEMO_RUTAS[(cs.length + i) % DEMO_RUTAS.length]; rutas[cs] = { o: r[0], d: r[1], on: '', dn: '', ok: true }; });
+      faltan.forEach(function (cs, i) {
+        var r = DEMO_RUTAS[(cs.length + i) % DEMO_RUTAS.length], o = DEMO_AP[r[0]], d = DEMO_AP[r[1]];
+        rutas[cs] = { o: r[0], d: r[1], on: '', dn: '', ok: true, olat: o[0], olon: o[1], dlat: d[0], dlon: d[1] };
+      });
       return;
     }
     faltan.forEach(function (cs) { rutasPedidas[cs] = true; });
@@ -249,6 +328,7 @@
       .then(function (j) {
         var rr = j.rutas || {};
         for (var cs in rr) rutas[cs] = rr[cs];
+        if (seleccion) calcularEstelas(); // ahora se puede dibujar el tramo desde el origen
         // los que no vinieron (falló la consulta) se reintentan en un minuto
         var sinRespuesta = faltan.filter(function (c) { return !(c in rr); });
         if (sinRespuesta.length) setTimeout(function () { sinRespuesta.forEach(function (c) { delete rutasPedidas[c]; }); }, 60000);
@@ -611,6 +691,70 @@
         x.fillRect(CX + xy.x * ESCALA - 1, CY - xy.y * ESCALA - 1, 2, 2);
       }
     }
+    dibujarRecorrido(x);
+  }
+
+  // ---------------- Vuelo del avión seleccionado ----------------
+  // Rumbo y distancia por círculo máximo (sirven para destinos a miles de km)
+  function rumboGC(la1, lo1, la2, lo2) {
+    var r = Math.PI / 180, f1 = la1 * r, f2 = la2 * r, dl = (lo2 - lo1) * r;
+    var y = Math.sin(dl) * Math.cos(f2), xx = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+    return (Math.atan2(y, xx) / r + 360) % 360;
+  }
+  function distGC(la1, lo1, la2, lo2) {
+    var r = Math.PI / 180, a = Math.sin((la2 - la1) * r / 2), b = Math.sin((lo2 - lo1) * r / 2);
+    var h = a * a + Math.cos(la1 * r) * Math.cos(la2 * r) * b * b;
+    return 12742 * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+  // Punto final de una línea que sale de (px,py) hacia un aeropuerto: el aeropuerto si entra
+  // en el radar; si no, el borde del círculo en la dirección correcta.
+  function haciaAeropuerto(px, py, lat, lon, latAp, lonAp) {
+    var dist = distGC(lat, lon, latAp, lonAp);
+    var ap = aXY(latAp, lonAp);
+    if (ap.x * ap.x + ap.y * ap.y <= cfg.km * cfg.km) return { x: CX + ap.x * ESCALA, y: CY - ap.y * ESCALA, dist: dist, dentro: true };
+    var b = rumboGC(lat, lon, latAp, lonAp) * Math.PI / 180, dx = Math.sin(b), dy = -Math.cos(b);
+    var ox = px - CX, oy = py - CY;
+    var B = 2 * (ox * dx + oy * dy), C = ox * ox + oy * oy - R * R;
+    var t = (-B + Math.sqrt(Math.max(0, B * B - 4 * C))) / 2;
+    return { x: px + dx * t, y: py + dy * t, dist: dist, dentro: false };
+  }
+  // Se dibuja en la capa de estelas: solo se rehace al llegar datos o cambiar la selección
+  function dibujarRecorrido(x) {
+    var a = seleccion && aviones[seleccion];
+    if (!a || !a.hist || !a.hist.length) return;
+    x.save();
+    x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.clip();
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    var r = a.d.cs && rutas[a.d.cs], h = a.hist;
+    // Desde el origen hasta el primer punto visto (punteada y tenue)
+    if (r && r.olat != null) {
+      var p0 = aXY(h[0].lat, h[0].lon), x0 = CX + p0.x * ESCALA, y0 = CY - p0.y * ESCALA;
+      var o = haciaAeropuerto(x0, y0, h[0].lat, h[0].lon, r.olat, r.olon);
+      x.globalAlpha = 0.45; x.strokeStyle = '#c9a227'; x.lineWidth = 1.5; x.setLineDash([2, 6]);
+      x.beginPath(); x.moveTo(o.x, o.y); x.lineTo(x0, y0); x.stroke();
+      x.setLineDash([]);
+    }
+    // Recorrido real, coloreado por altitud
+    x.globalAlpha = 0.9; x.lineWidth = 2.5;
+    for (var i = 1; i < h.length; i++) {
+      var p1 = aXY(h[i - 1].lat, h[i - 1].lon), p2 = aXY(h[i].lat, h[i].lon);
+      x.strokeStyle = colorAlt({ alt: h[i].alt, gnd: h[i].gnd, sq: '' });
+      x.beginPath(); x.moveTo(CX + p1.x * ESCALA, CY - p1.y * ESCALA); x.lineTo(CX + p2.x * ESCALA, CY - p2.y * ESCALA); x.stroke();
+    }
+    x.restore();
+  }
+  // Etiqueta del destino ("AEP · 312 km"), pre-renderizada y reusada mientras no cambie
+  var etqDestino = { clave: '', c: null };
+  function etiquetaDestino(texto) {
+    if (etqDestino.clave === texto + DPR) return etqDestino.c;
+    var l = lienzo(140, 22), x = l.x;
+    x.font = 'bold 12px Roboto, sans-serif'; x.textBaseline = 'middle';
+    var w = x.measureText(texto).width + 12;
+    x.fillStyle = 'rgba(0,0,0,.85)'; x.strokeStyle = '#ffd54a'; x.lineWidth = 1;
+    x.fillRect(0.5, 0.5, w, 20); x.strokeRect(0.5, 0.5, w, 20);
+    x.fillStyle = '#ffd54a'; x.fillText(texto, 6, 11);
+    etqDestino = { clave: texto + DPR, c: l.c, w: w };
+    return l.c;
   }
 
   function calcularPosiciones(ahora) {
@@ -683,6 +827,25 @@
       ctx.moveTo(sel.px + 17, sel.py);
       ctx.arc(sel.px, sel.py, 17, 0, TAU);
       ctx.stroke();
+      // Línea punteada hacia el destino, con la distancia que le falta
+      var rt = d.cs && rutas[d.cs];
+      if (rt && rt.dlat != null && !d.gnd) {
+        var pa = posActual(sel, ahora);
+        var dst = haciaAeropuerto(sel.px, sel.py, pa.lat, pa.lon, rt.dlat, rt.dlon);
+        if (dst.dist > 2) {
+          ctx.globalAlpha = 0.75; ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]);
+          ctx.beginPath(); ctx.moveTo(sel.px, sel.py); ctx.lineTo(dst.x, dst.y); ctx.stroke();
+          ctx.setLineDash([]);
+          var et = etiquetaDestino(rt.d + ' · ' + miles(dst.dist) + ' km');
+          // la etiqueta queda adentro del círculo, cerca del extremo de la línea
+          var ex = Math.min(Math.max(dst.x - (etqDestino.w || 80) / 2, CX - R + 6), CX + R - (etqDestino.w || 80) - 6);
+          var ey = Math.min(Math.max(dst.y - (dst.dentro ? 28 : 11), 8), H - 30);
+          ctx.globalAlpha = 1;
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.drawImage(et, Math.round(ex * D), Math.round(ey * D));
+          ctx.setTransform(D, 0, 0, D, 0, 0);
+        }
+      }
       pintarAvion(sel, true, ang, viejo, true, D);
     } else if (perdido && perdido.d.hex === seleccion) {
       // Última posición conocida del avión que se perdió: círculo punteado gris
@@ -912,13 +1075,18 @@
       var dd = Math.sqrt((a.px - x) * (a.px - x) + (a.py - y) * (a.py - y));
       if (dd < mejorD) { mejorD = dd; mejor = a.d.hex; }
     });
-    seleccion = mejor;
-    perdido = null;
-    renderPanel();
+    seleccionar(mejor);
   });
 
+  function seleccionar(hex) {
+    seleccion = hex;
+    perdido = null;
+    calcularEstelas(); // dibuja (o borra) el recorrido del seleccionado
+    renderPanel();
+  }
+
   $('detalle').addEventListener('click', function (e) {
-    if (e.target.closest('.cerrar')) { seleccion = null; perdido = null; renderPanel(); return; }
+    if (e.target.closest('.cerrar')) { seleccionar(null); return; }
     var b = e.target.closest('button.ampliar');
     if (b) cambiarAlcance(Number(b.getAttribute('data-km')));
   });
@@ -927,9 +1095,7 @@
     var li = e.target.closest('li[data-hex]');
     if (!li) return;
     var h = li.getAttribute('data-hex');
-    seleccion = seleccion === h ? null : h;
-    perdido = null;
-    renderPanel();
+    seleccionar(seleccion === h ? null : h);
   });
 
   $('rangos').addEventListener('click', function (e) {
@@ -1066,8 +1232,7 @@
     demoTick();
     setInterval(demoTick, INTERVALO_MS);
   } else {
-    pedir();
-    setInterval(pedir, INTERVALO_MS);
+    cicloPedidos();
   }
   // Anti quemado OLED: corre toda la interfaz unos píxeles cada 2 minutos,
   // así los elementos fijos (anillos, reloj, bordes) no marcan la pantalla.

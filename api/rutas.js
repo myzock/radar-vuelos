@@ -9,6 +9,8 @@ function aeropuerto(a) {
   return {
     cod: a.iata || a.icao || '',
     ciudad: a.location || a.name || '',
+    lat: typeof a.lat === 'number' ? a.lat : null,
+    lon: typeof a.lon === 'number' ? a.lon : null,
   };
 }
 
@@ -90,6 +92,7 @@ async function desdeAdsbLol(callsigns, lat, lon) {
       d: d.cod || codigos[codigos.length - 1] || '?',
       on: o.ciudad,
       dn: d.ciudad,
+      olat: o.lat, olon: o.lon, dlat: d.lat, dlon: d.lon,
       ok: x.plausible === undefined ? true : !!x.plausible, // false: la ruta no coincide con la posición
     };
   });
@@ -108,11 +111,14 @@ async function desdeAdsbdb(callsigns) {
       const j = await r.json();
       const fr = j && j.response && j.response.flightroute;
       if (!fr || !fr.origin || !fr.destination) { rutas[cs] = null; return; }
+      const coord = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
       rutas[cs] = {
         o: fr.origin.iata_code || fr.origin.iata || fr.origin.icao_code || fr.origin.icao || '?',
         d: fr.destination.iata_code || fr.destination.iata || fr.destination.icao_code || fr.destination.icao || '?',
         on: fr.origin.municipality || fr.origin.name || '',
         dn: fr.destination.municipality || fr.destination.name || '',
+        olat: coord(fr.origin.latitude), olon: coord(fr.origin.longitude),
+        dlat: coord(fr.destination.latitude), dlon: coord(fr.destination.longitude),
         ok: true,
       };
     } catch (e) { /* se reintenta en otra consulta */ }

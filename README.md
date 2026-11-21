@@ -21,6 +21,7 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
   - Si se aleja, muestra la distancia y un botón para ampliar el alcance; el proxy lo sigue buscando por su código aunque esté fuera del área
   - Si deja de transmitir, indica hace cuánto y atenúa el ícono; si se pierde, marca su última posición y cerca de dónde fue
   - Si vuelve a aparecer, lo retoma solo
+  - Se dibuja su vuelo: el recorrido desde que entró al radar (coloreado por altitud), una línea tenue desde el aeropuerto de origen y otra punteada hasta el destino con los km que faltan
 - **Alertas** visuales y sonoras ante squawk de emergencia (7700/7600/7500) o cuando aparece algo de tu lista: tipos (A388, B748…), matrículas o aerolíneas
 - **Filtros:** ocultar aviones en tierra o mostrar solo hasta cierta altitud
 - **Modo noche** automático (23 a 7 por defecto): baja el brillo al 30% y oculta etiquetas
@@ -44,7 +45,7 @@ Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.
 - **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign, con [adsbdb.com](https://www.adsbdb.com) de respaldo; se cachean una hora.
 - **Mapa (`mapa/`):** 5.259 mosaicos estáticos de 2°×2° (11 MB en total). La app baja solo los de su zona (unos 12) y arma el fondo una vez. Se regeneran con `herramientas/generar_mapa.py` a partir de Natural Earth 1:10m y OurAirports.
 - **Versión (`api/version.js`):** devuelve el commit publicado, para la actualización automática.
-- La app pide datos cada 6 segundos. Las funciones corren en `gru1` (São Paulo) para menor latencia desde Argentina.
+- La app consulta las APIs **directamente desde el navegador** cuando lo permiten (cada 6 s), sin pasar por Vercel. Si no puede, usa el proxy cada 10 s (30 s en modo noche) y vuelve a probar la vía directa cada 30 minutos. Las funciones corren en `gru1` (São Paulo) para menor latencia desde Argentina.
 
 ## Rendimiento (60 fps)
 
