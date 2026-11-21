@@ -69,3 +69,35 @@ button.activo { background: #0a3a3f; color: #eafffc; border-color: #3fd1c4; }
 
 footer { display: flex; gap: 6px; }
 footer button { flex: 1; }
+
+/* Ruta en lista y detalle */
+#lista .ruta { color: #ffd54a; font-size: 12px; margin-left: 6px; opacity: .85; }
+.detalle .ruta { font-size: 16px; color: #ffd54a; margin: 2px 0 2px; }
+.detalle .ruta small { color: #c9b97a; font-size: 12px; }
+
+/* Alertas */
+.alerta {
+  position: fixed; top: 14px; left: 14px; max-width: 46%; z-index: 20;
+  background: #000; border: 1px solid #ffd54a; color: #ffe9a0; border-radius: 12px;
+  padding: 10px 14px; font-size: 16px; transition: opacity .4s;
+}
+.alerta.emerg { border-color: #ff4d4d; color: #ffb3b3; }
+.alerta.oculto { opacity: 0; pointer-events: none; }
+
+/* Modo noche: velo negro (en OLED, bajar brillo = más píxeles apagados) */
+#noche { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #000; opacity: 0; pointer-events: none; z-index: 10; transition: opacity 2s; display: none; }
+
+/* Ajustes */
+.ajustes { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.85); z-index: 30; display: flex; align-items: center; justify-content: center; }
+.ajustes.oculto { display: none; }
+.ajustes .caja { background: #000; border: 1px solid #0f4a52; border-radius: 14px; padding: 18px 20px; width: 440px; max-width: 92%; display: flex; flex-direction: column; gap: 12px; font-size: 15px; }
+.ajustes h2 { font-size: 20px; font-weight: 500; color: #e8fffb; }
+.ajustes .fila { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ajustes .fila input[type=checkbox] { width: 20px; height: 20px; margin-right: 8px; accent-color: #3fd1c4; }
+.ajustes label.fila:has(input[type=checkbox]) { justify-content: flex-start; }
+.ajustes .col { display: flex; flex-direction: column; gap: 6px; }
+.ajustes select, .ajustes input[type=text], .ajustes input[type=number] {
+  font: inherit; color: #e8fffb; background: #000; border: 1px solid #0f4a52; border-radius: 8px; padding: 6px 8px;
+}
+.ajustes input[type=number] { width: 58px; }
+.ajustes .nota { font-size: 12px; color: #5f938c; }

@@ -9,20 +9,29 @@ Radar de aviones en vivo pensado para dejar prendido en una tablet: muestra los 
 ## Qué muestra
 
 - Aviones en un radar circular con alcance de 10 a 200 km, coloreados por altitud (rojo = squawk de emergencia)
+- Origen y destino de cada vuelo (ej. `ARG1302 · AEP → COR`)
+- Costa del Río de la Plata y pistas reales de AEP, EZE, San Fernando, El Palomar y Morón
 - Estelas con el recorrido reciente y movimiento suave entre actualizaciones (se extrapola con velocidad y rumbo)
 - Detalle al tocar un avión: tipo, matrícula, altitud, velocidad, rumbo, distancia, régimen vertical y squawk, más una línea con dónde va a estar en 2 minutos
 - Referencias de AEP, EZE, San Fernando y El Palomar
 - Lista de vuelos ordenada por distancia y reloj
+- **Alertas** visuales y sonoras ante squawk de emergencia (7700/7600/7500) o cuando aparece algo de tu lista: tipos (A388, B748…), matrículas o aerolíneas
+- **Filtros:** ocultar aviones en tierra o mostrar solo hasta cierta altitud
+- **Modo noche** automático (23 a 7 por defecto): baja el brillo al 30% y oculta etiquetas
+- Todo se configura desde **⚙ Ajustes** y queda guardado en la tablet
 
 ## Cómo funciona
 
 ```
-Tablet (index.html + app.js)  →  /api/aviones (Vercel)  →  adsb.fi / airplanes.live / adsb.lol
+Tablet (index.html + app.js)  →  /api/aviones (Vercel, São Paulo)  →  adsb.fi / airplanes.live / adsb.lol
+                              →  /api/rutas                      →  adsb.lol (base de rutas)
 ```
 
 - **Frontend:** HTML + CSS + JavaScript sin frameworks ni build, compatible con navegadores viejos (probado para Chrome 106 / Android 6).
 - **Proxy (`api/aviones.js`):** función serverless que consulta las APIs públicas en orden, con respaldo si una falla, normaliza la respuesta y la cachea unos segundos en el CDN para no pasarse de los límites de uso.
-- La app pide datos cada 6 segundos.
+- **Rutas (`api/rutas.js`):** consulta la base de rutas de adsb.lol por callsign; se cachean una hora.
+- **Mapa (`geo.js`):** costa de Natural Earth 1:10m y pistas de OurAirports, ambas de dominio público.
+- La app pide datos cada 6 segundos. Las funciones corren en `gru1` (São Paulo) para menor latencia desde Argentina.
 
 ## Rendimiento (60 fps)
 
@@ -30,7 +39,7 @@ El radar son 5 canvas apilados que compone la GPU; solo uno se redibuja por cuad
 
 | Capa | Se redibuja |
 |---|---|
-| Fondo (anillos, textos, aeropuertos) | al cambiar tamaño, alcance o ubicación |
+| Fondo (anillos, costa, pistas, textos) | al cambiar tamaño, alcance o ubicación |
 | Estelas | cuando llegan datos |
 | Barrido | nunca: lo rota el compositor con una animación, sin JavaScript |
 | Borde y puntos cardinales | al cambiar tamaño |
@@ -73,6 +82,8 @@ Abrir http://localhost:3000 (datos reales) o http://localhost:3000/?demo.
 Cada push a `main` se publica en Vercel. No hay build ni variables de entorno.
 
 ## Fuentes de datos
+
+Mapa: [Natural Earth](https://www.naturalearthdata.com) y [OurAirports](https://ourairports.com) (dominio público).
 
 Los datos de vuelos son de redes comunitarias de receptores ADS-B: [adsb.fi](https://adsb.fi), [airplanes.live](https://airplanes.live) y [adsb.lol](https://adsb.lol). Gracias a todos los que alimentan esas redes. Sus APIs son gratuitas y están pensadas para uso personal y no comercial: revisá sus condiciones antes de usar esto para otra cosa. La cobertura depende de la cantidad de receptores en cada zona.
 

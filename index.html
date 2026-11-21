@@ -32,11 +32,36 @@
     <div class="lista-titulo"><span>En el radar</span><span id="contador">0</span></div>
     <ul id="lista"></ul>
     <footer>
-      <button id="btn-ubic">📍 Mi ubicación</button>
-      <button id="btn-full">⛶ Pantalla completa</button>
+      <button id="btn-ubic">📍 Ubicación</button>
+      <button id="btn-aj">⚙ Ajustes</button>
+      <button id="btn-full">⛶ Completa</button>
     </footer>
   </aside>
 </div>
+<div id="alerta" class="alerta oculto"></div>
+<div id="noche"></div>
+<div id="ajustes" class="ajustes oculto">
+  <div class="caja">
+    <h2>Ajustes</h2>
+    <label class="fila"><input type="checkbox" id="aj-tierra"> Ocultar aviones en tierra</label>
+    <label class="fila">Altitud máxima
+      <select id="aj-alt"><option value="0">Todas</option><option value="10000">Hasta 3.000 m</option><option value="5000">Hasta 1.500 m</option></select>
+    </label>
+    <label class="fila">Modo noche
+      <select id="aj-noche"><option value="auto">Automático</option><option value="si">Siempre</option><option value="no">Nunca</option></select>
+    </label>
+    <label class="fila">Horario automático
+      <span><input type="number" id="aj-desde" min="0" max="23"> a <input type="number" id="aj-hasta" min="0" max="23"> h</span>
+    </label>
+    <label class="fila"><input type="checkbox" id="aj-sonido"> Sonido en alertas</label>
+    <label class="col">Avisarme cuando aparezca (tipos, matrículas o aerolíneas, separados por coma)
+      <input type="text" id="aj-vigilar" spellcheck="false" autocomplete="off">
+    </label>
+    <p class="nota">Ejemplos: A388 (tipo), LV-FNI (matrícula), KLM (aerolínea). Las emergencias (7700/7600/7500) se avisan siempre.</p>
+    <button id="aj-cerrar" class="activo">Listo</button>
+  </div>
+</div>
+<script src="geo.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

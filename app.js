@@ -10,11 +10,13 @@
   var EXTRAPOLAR_MAX_S = 45;     // cuánto se "adivina" la posición sin datos nuevos
   var VUELTA_BARRIDO_MS = 4000;
   var HITOS = [
-    { id: 'AEP', lat: -34.5592, lon: -58.4156 },
-    { id: 'EZE', lat: -34.8222, lon: -58.5358 },
-    { id: 'FDO', lat: -34.4532, lon: -58.5896 },
-    { id: 'EPA', lat: -34.6099, lon: -58.6126 }
+    { id: 'AEP', icao: 'SABE', lat: -34.5592, lon: -58.4156 },
+    { id: 'EZE', icao: 'SAEZ', lat: -34.8222, lon: -58.5358 },
+    { id: 'FDO', icao: 'SADF', lat: -34.4532, lon: -58.5896 },
+    { id: 'EPA', icao: 'SADP', lat: -34.6099, lon: -58.6126 },
+    { id: 'MOR', icao: 'SADM', lat: -34.6763, lon: -58.6428 }
   ];
+  var GEO = window.RADAR_GEO || { costa: [], pistas: [] };
 
   var params = new URLSearchParams(location.search);
   var DEMO = params.has('demo');
@@ -32,6 +34,21 @@
   function guardar() {
     try { localStorage.setItem('radar-cfg', JSON.stringify(cfg)); } catch (e) {}
   }
+  // Ajustes del usuario (panel ⚙), guardados en la tablet
+  var AJUSTES_DEFECTO = {
+    ocultarTierra: true, altMax: 0, noche: 'auto', nocheDesde: 23, nocheHasta: 7, sonido: true,
+    vigilar: 'A388, A124, AN22, B748, B744, C17, C5M, A400, IL76, A3ST, BLCF, B52'
+  };
+  var ajustes = (function () {
+    var a = {}, k, guardado = {};
+    try { guardado = JSON.parse(localStorage.getItem('radar-ajustes') || '{}') || {}; } catch (e) {}
+    for (k in AJUSTES_DEFECTO) a[k] = k in guardado ? guardado[k] : AJUSTES_DEFECTO[k];
+    return a;
+  })();
+  function guardarAjustes() {
+    try { localStorage.setItem('radar-ajustes', JSON.stringify(ajustes)); } catch (e) {}
+  }
+
   var g = leerGuardado();
   var cfg = {
     lat: primeroNum(params.get('lat'), g.lat, DEFECTO.lat),
@@ -111,6 +128,8 @@
     rehacerLista();
     calcularPosiciones(ahora);
     calcularEstelas();
+    revisarAlertas();
+    pedirRutas();
     renderPanel();
   }
 
@@ -154,8 +173,15 @@
       hex: (0xe00000 + i * 4111).toString(16), cs: DEMO_CS[i % DEMO_CS.length], reg: 'LV-' + String.fromCharCode(65 + i) + 'XY',
       tipo: t[0], desc: t[1], lat: p.lat, lon: p.lon, alt: alt, gnd: false,
       gs: 140 + Math.random() * 340, trk: Math.random() * 360,
-      vr: Math.round((Math.random() - 0.5) * 3000 / 64) * 64, sq: i === 5 ? '7700' : String(1000 + i * 13), seen: 0
+      vr: Math.round((Math.random() - 0.5) * 3000 / 64) * 64, sq: i === 5 ? '7700' : String(1000 + i * 13), seen: 0,
+      // para probar alertas y filtros: un A380 (lista de vigilancia) y uno en tierra
+      gndDemo: i === 3
     };
+  }
+  function ajustarDemo(d) {
+    if (d.gndDemo) { d.gnd = true; d.alt = 0; d.gs = 0; }
+    if (d.cs === 'AFR418') { d.tipo = 'A388'; d.desc = 'AIRBUS A-380-800'; }
+    return d;
   }
   function demoTick() {
     var ahora = Date.now();
@@ -175,7 +201,133 @@
         return d;
       });
     }
-    integrar(lista, ahora);
+    integrar(lista.map(ajustarDemo), ahora);
+  }
+
+  // ---------------- Rutas (origen → destino) ----------------
+  var rutas = {};      // callsign -> {o, d, on, dn, ok} | null (sin ruta conocida)
+  var rutasPedidas = {};
+  var DEMO_RUTAS = [['AEP', 'COR'], ['SCL', 'AEP'], ['EZE', 'GRU'], ['AEP', 'MDZ'], ['EZE', 'MAD'], ['GIG', 'EZE'], ['AEP', 'BRC'], ['EZE', 'MIA']];
+  function pedirRutas() {
+    var faltan = [];
+    for (var i = 0; i < lista.length && faltan.length < 40; i++) {
+      var cs = lista[i].d.cs;
+      if (cs && !(cs in rutas) && !rutasPedidas[cs]) faltan.push(cs);
+    }
+    if (!faltan.length) return;
+    if (DEMO) {
+      faltan.forEach(function (cs, i) { var r = DEMO_RUTAS[(cs.length + i) % DEMO_RUTAS.length]; rutas[cs] = { o: r[0], d: r[1], on: '', dn: '', ok: true }; });
+      return;
+    }
+    faltan.forEach(function (cs) { rutasPedidas[cs] = true; });
+    fetch('/api/rutas?cs=' + faltan.join(',') + '&lat=' + cfg.lat.toFixed(2) + '&lon=' + cfg.lon.toFixed(2))
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        var rr = j.rutas || {};
+        for (var cs in rr) rutas[cs] = rr[cs];
+        renderPanel();
+      })
+      .catch(function (e) {
+        // si falla, se vuelve a intentar en un minuto
+        setTimeout(function () { faltan.forEach(function (cs) { delete rutasPedidas[cs]; }); }, 60000);
+        console.warn('Radar: rutas', e);
+      });
+  }
+  function rutaCorta(d) {
+    var r = d.cs && rutas[d.cs];
+    return r ? r.o + '→' + r.d : '';
+  }
+
+  // ---------------- Filtros ----------------
+  function pasaFiltros(d) {
+    if (ajustes.ocultarTierra && d.gnd && !esEmerg(d)) return false;
+    if (ajustes.altMax && !d.gnd && d.alt != null && d.alt > ajustes.altMax) return false;
+    return true;
+  }
+
+  // ---------------- Alertas ----------------
+  var alertados = {};
+  var audio = null;
+  function listaVigilar() {
+    return String(ajustes.vigilar || '').toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  }
+  function motivoVigilancia(d) {
+    var l = listaVigilar(), cs = (d.cs || '').toUpperCase(), reg = (d.reg || '').toUpperCase(), tipo = (d.tipo || '').toUpperCase();
+    for (var i = 0; i < l.length; i++) {
+      var v = l[i];
+      if (v === tipo) return d.desc || tipo;
+      if (reg && v.replace('-', '') === reg.replace('-', '')) return 'matrícula ' + reg;
+      if (v.length === 3 && /^[A-Z]{3}$/.test(v) && cs.indexOf(v) === 0 && /\d/.test(cs.charAt(3))) return 'aerolínea ' + v;
+      if (v === d.hex.toUpperCase()) return 'hex ' + v;
+    }
+    return '';
+  }
+  function revisarAlertas() {
+    for (var i = 0; i < lista.length; i++) {
+      var a = lista[i], d = a.d;
+      if (!a.dentro || alertados[d.hex]) continue;
+      if (esEmerg(d)) {
+        var tipoEm = { '7500': 'interferencia ilícita', '7600': 'falla de radio', '7700': 'emergencia' }[d.sq];
+        alertados[d.hex] = 'emerg';
+        mostrarAlerta('⚠ ' + d.sq + ' ' + tipoEm + ' · ' + nombre(d) + ' a ' + a.dist.toFixed(0) + ' km', true);
+        continue;
+      }
+      var m = motivoVigilancia(d);
+      if (m) {
+        alertados[d.hex] = 'vigilado';
+        mostrarAlerta('★ ' + nombre(d) + ' · ' + m + ' a ' + a.dist.toFixed(0) + ' km', false);
+      }
+    }
+  }
+  var tAlerta;
+  function mostrarAlerta(texto, emergencia) {
+    var el = $('alerta');
+    el.textContent = texto;
+    el.className = 'alerta' + (emergencia ? ' emerg' : '');
+    clearTimeout(tAlerta);
+    tAlerta = setTimeout(function () { el.className = 'alerta oculto' + (emergencia ? ' emerg' : ''); }, emergencia ? 30000 : 12000);
+    if (ajustes.sonido) sonar(emergencia);
+  }
+  function desbloquearAudio() {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!audio && AC) { try { audio = new AC(); } catch (e) {} }
+    if (audio && audio.state === 'suspended') audio.resume();
+  }
+  function sonar(emergencia) {
+    if (!audio || audio.state !== 'running') return; // el navegador exige tocar la pantalla una vez antes
+    var t = audio.currentTime;
+    var tonos = emergencia ? [880, 660, 880, 660] : [660, 990];
+    tonos.forEach(function (f, i) {
+      var o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(0.0001, t + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.25, t + i * 0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.16);
+      o.connect(g); g.connect(audio.destination);
+      o.start(t + i * 0.18); o.stop(t + i * 0.18 + 0.17);
+    });
+  }
+
+  // ---------------- Modo noche ----------------
+  var nocheActiva = false;
+  function esNoche() {
+    if (ajustes.noche === 'si') return true;
+    if (ajustes.noche === 'no') return false;
+    var h = new Date().getHours(), de = +ajustes.nocheDesde, a = +ajustes.nocheHasta;
+    return de <= a ? (h >= de && h < a) : (h >= de || h < a);
+  }
+  function aplicarNoche() {
+    var n = esNoche();
+    if (n === nocheActiva) return;
+    nocheActiva = n;
+    var v = $('noche');
+    if (n) {
+      v.style.display = 'block';
+      setTimeout(function () { v.style.opacity = '0.7'; }, 30);
+    } else {
+      v.style.opacity = '0';
+      setTimeout(function () { if (!nocheActiva) v.style.display = 'none'; }, 2100);
+    }
   }
 
   // ---------------- Canvas (optimizado para 60 fps) ----------------
@@ -250,13 +402,36 @@
       x.fillText((v % 1 ? v.toFixed(1) : v) + ' km', CX + R * k / 4 * Math.cos(rad(160)) + 4, CY + R * k / 4 * Math.sin(rad(160)));
     }
 
+    // Costa del Río de la Plata (recortada al círculo del radar)
+    x.save();
+    x.beginPath(); x.arc(CX, CY, R, 0, TAU); x.clip();
+    x.strokeStyle = 'rgba(80,150,210,.55)'; x.lineWidth = 1.3; x.lineJoin = 'round';
+    GEO.costa.forEach(function (l) {
+      x.beginPath();
+      for (var i = 0; i < l.length; i += 2) {
+        var p = aXY(l[i], l[i + 1]);
+        if (i) x.lineTo(CX + p.x * ESCALA, CY - p.y * ESCALA); else x.moveTo(CX + p.x * ESCALA, CY - p.y * ESCALA);
+      }
+      x.stroke();
+    });
+    // Pistas (ancho real de ~45 m, con un mínimo para que se vean)
+    var conPistas = {};
+    x.strokeStyle = 'rgba(255,150,210,.75)'; x.lineCap = 'round';
+    x.lineWidth = Math.max(2, 0.045 * ESCALA);
+    GEO.pistas.forEach(function (p) {
+      var a = aXY(p[2], p[3]), b = aXY(p[4], p[5]);
+      conPistas[p[0]] = true;
+      x.beginPath(); x.moveTo(CX + a.x * ESCALA, CY - a.y * ESCALA); x.lineTo(CX + b.x * ESCALA, CY - b.y * ESCALA); x.stroke();
+    });
+    x.restore();
+
     x.font = '11px Roboto, sans-serif';
     HITOS.forEach(function (h) {
       var xy = aXY(h.lat, h.lon);
       if (Math.sqrt(xy.x * xy.x + xy.y * xy.y) > cfg.km) return;
       var hx = CX + xy.x * ESCALA, hy = CY - xy.y * ESCALA;
-      x.strokeStyle = 'rgba(255,120,200,.8)'; x.lineWidth = 1.5; x.strokeRect(hx - 4, hy - 4, 8, 8);
-      x.fillStyle = 'rgba(255,160,215,.85)'; x.fillText(h.id, hx + 7, hy);
+      if (!conPistas[h.icao]) { x.strokeStyle = 'rgba(255,120,200,.8)'; x.lineWidth = 1.5; x.strokeRect(hx - 4, hy - 4, 8, 8); }
+      x.fillStyle = 'rgba(255,160,215,.85)'; x.fillText(h.id, hx + 9, hy - 8);
     });
     x.fillStyle = '#ffffff'; x.beginPath(); x.arc(CX, CY, 3, 0, TAU); x.fill();
   }
@@ -347,6 +522,7 @@
     x.fillStyle = '#a0f0e6';
     for (var i = 0; i < lista.length; i++) {
       var a = lista[i], n = a.estela.length;
+      if (!pasaFiltros(a.d)) continue;
       for (var j = 0; j < n; j++) {
         var xy = aXY(a.estela[j].lat, a.estela[j].lon);
         if (xy.x * xy.x + xy.y * xy.y > cfg.km * cfg.km) continue;
@@ -367,6 +543,7 @@
       a.px = CX + xy.x * ESCALA;
       a.py = CY - xy.y * ESCALA;
       a.dentro = a.dist <= cfg.km;
+      a.mostrar = a.dentro && pasaFiltros(a.d);
     }
   }
 
@@ -387,8 +564,8 @@
     calcularPosiciones(ahora);
     var viejo = estado === 'error' && ahora - ultimaOK > 60000;
     var visibles = 0, i, a;
-    for (i = 0; i < lista.length; i++) if (lista[i].dentro) visibles++;
-    var conEtiqueta = visibles <= 30;
+    for (i = 0; i < lista.length; i++) if (lista[i].mostrar) visibles++;
+    var conEtiqueta = visibles <= 30 && !nocheActiva;
 
     ctx.setTransform(D, 0, 0, D, 0, 0);
 
@@ -396,9 +573,20 @@
     var sel = null;
     for (i = 0; i < lista.length; i++) {
       a = lista[i];
-      if (!a.dentro) continue;
+      if (!a.mostrar) continue;
       if (a.d.hex === seleccion) { sel = a; continue; } // el seleccionado va al final, arriba de todo
       pintarAvion(a, false, ang, viejo, conEtiqueta, D);
+    }
+    // Anillo pulsante en aviones con alerta (son pocos: un arco por avión)
+    var pulso = (ahora % 1500) / 1500;
+    for (i = 0; i < lista.length; i++) {
+      a = lista[i];
+      if (!a.mostrar || !alertados[a.d.hex]) continue;
+      ctx.setTransform(D, 0, 0, D, 0, 0);
+      ctx.globalAlpha = 1 - pulso;
+      ctx.strokeStyle = alertados[a.d.hex] === 'emerg' ? '#ff4d4d' : '#ffd54a';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(a.px, a.py, 12 + pulso * 16, 0, TAU); ctx.stroke();
     }
     if (sel) {
       var d = sel.d;
@@ -468,7 +656,7 @@
   }
 
   function renderPanel() {
-    var enRadio = lista.filter(function (a) { return a.dentro; })
+    var enRadio = lista.filter(function (a) { return a.mostrar; })
       .sort(function (a, b) { return a.dist - b.dist; });
 
     poner('contador', 'textContent', String(enRadio.length));
@@ -476,7 +664,7 @@
       var d = a.d;
       return '<li data-hex="' + esc(d.hex) + '"' + (d.hex === seleccion ? ' class="sel"' : '') + '>' +
         '<span class="izq"><span class="cs' + (esEmerg(d) ? ' emerg' : '') + '">' + esc(nombre(d)) + '</span>' +
-        '<span class="t">' + esc(d.tipo || '') + '</span></span>' +
+        (rutaCorta(d) ? '<span class="ruta">' + esc(rutaCorta(d)) + '</span>' : '<span class="t">' + esc(d.tipo || '') + '</span>') + '</span>' +
         '<span class="num a">' + altTexto(d) + '</span>' +
         '<span class="num d">' + a.dist.toFixed(1) + ' km</span></li>';
     }).join('') : '<li class="vacio">' + (estado === 'cargando' ? 'Buscando aviones…' : 'No hay aviones en este radio') + '</li>');
@@ -489,10 +677,14 @@
     }
     var d = a.d;
     var tipo = d.desc ? d.desc + (d.tipo ? ' (' + d.tipo + ')' : '') : (d.tipo || 'Tipo desconocido');
+    var r = d.cs && rutas[d.cs];
+    var rutaHtml = r ? '<div class="ruta">' + esc(r.o) + (r.on ? ' <small>' + esc(r.on) + '</small>' : '') + ' → ' + esc(r.d) +
+      (r.dn ? ' <small>' + esc(r.dn) + '</small>' : '') + (r.ok ? '' : ' <small>(sin confirmar)</small>') + '</div>' : '';
     var vr = d.vr == null || Math.abs(d.vr) < 100 ? 'Nivelado' : (d.vr > 0 ? '↑ ' : '↓ ') + miles(Math.abs(d.vr)) + ' ft/min';
     poner('detalle', 'className', 'detalle');
     poner('detalle', 'innerHTML',
       '<div class="cs' + (esEmerg(d) ? ' emerg' : '') + '">' + esc(nombre(d)) + '</div>' +
+      rutaHtml +
       '<div class="tipo">' + esc(tipo) + '</div>' +
       '<div class="grid">' +
       '<span>Altitud <b>' + altTexto(d) + '</b></span>' +
@@ -526,7 +718,7 @@
     var x = e.clientX - r.left, y = e.clientY - r.top;
     var mejor = null, mejorD = 40;
     lista.forEach(function (a) {
-      if (!a.dentro) return;
+      if (!a.mostrar) return;
       var dd = Math.sqrt((a.px - x) * (a.px - x) + (a.py - y) * (a.py - y));
       if (dd < mejorD) { mejorD = dd; mejor = a.d.hex; }
     });
@@ -594,7 +786,40 @@
       w.addEventListener('release', function () { wakeLock = null; });
     }).catch(function () {});
   }
-  document.addEventListener('click', mantenerDespierta);
+  document.addEventListener('click', function () { mantenerDespierta(); desbloquearAudio(); });
+
+  // ---------------- Panel de ajustes ----------------
+  function abrirAjustes() {
+    $('aj-tierra').checked = !!ajustes.ocultarTierra;
+    $('aj-alt').value = String(ajustes.altMax);
+    $('aj-noche').value = ajustes.noche;
+    $('aj-desde').value = ajustes.nocheDesde;
+    $('aj-hasta').value = ajustes.nocheHasta;
+    $('aj-sonido').checked = !!ajustes.sonido;
+    $('aj-vigilar').value = ajustes.vigilar;
+    $('ajustes').className = 'ajustes';
+  }
+  function leerAjustes() {
+    ajustes.ocultarTierra = $('aj-tierra').checked;
+    ajustes.altMax = Number($('aj-alt').value) || 0;
+    ajustes.noche = $('aj-noche').value;
+    ajustes.nocheDesde = Math.min(23, Math.max(0, parseInt($('aj-desde').value, 10) || 0));
+    ajustes.nocheHasta = Math.min(23, Math.max(0, parseInt($('aj-hasta').value, 10) || 0));
+    ajustes.sonido = $('aj-sonido').checked;
+    ajustes.vigilar = $('aj-vigilar').value;
+    guardarAjustes();
+    calcularPosiciones(Date.now());
+    calcularEstelas();
+    aplicarNoche();
+    renderPanel();
+  }
+  $('btn-aj').addEventListener('click', abrirAjustes);
+  $('ajustes').addEventListener('change', leerAjustes);
+  $('aj-cerrar').addEventListener('click', function () {
+    leerAjustes();
+    $('ajustes').className = 'ajustes oculto';
+    revisarAlertas();
+  });
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) { mantenerDespierta(); pedir(); }
   });
@@ -611,6 +836,8 @@
   actualizarEstado();
   reloj();
   setInterval(reloj, 1000);
+  aplicarNoche();
+  setInterval(aplicarNoche, 60000);
   setInterval(function () { calcularPosiciones(Date.now()); renderPanel(); }, 3000);
   if (DEMO) {
     demoTick();
