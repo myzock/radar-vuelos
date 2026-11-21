@@ -179,11 +179,13 @@
   }
 
   // ---------------- Canvas (optimizado para 60 fps) ----------------
-  // Todo lo que no cambia en cada cuadro se dibuja una sola vez en canvas fuera de pantalla:
-  //  - fondo: anillos, marcas, textos, aeropuertos (se rehace solo al cambiar tamaño/alcance/ubicación)
-  //  - barrido: un sprite que solo se rota
-  //  - aviones: un sprite por color, y una etiqueta pre-renderizada por avión
-  // Por cuadro solo hay drawImage + un poco de matemática: sin texto, sin gradientes, sin arcos.
+  // El radar son 5 canvas apilados; la GPU los compone y solo uno se redibuja por cuadro:
+  //  - capa-fondo: anillos, marcas, textos, aeropuertos (solo al cambiar tamaño/alcance/ubicación)
+  //  - capa-estelas: recorridos pasados (solo cuando llegan datos)
+  //  - capa-barrido: se dibuja una vez y la rota el compositor con una animación (no usa JS)
+  //  - capa-borde: círculo exterior y puntos cardinales
+  //  - radar: aviones. Un sprite por color y una etiqueta pre-renderizada por avión,
+  //    así cada cuadro es solo drawImage + matemática: sin texto, gradientes ni arcos.
   var cv = document.getElementById('radar');
   var ctx = cv.getContext('2d');
   var W, H, R, CX, CY, DPR, ESCALA;
@@ -390,7 +392,7 @@
 
     ctx.setTransform(D, 0, 0, D, 0, 0);
 
-    // 4) aviones y etiquetas
+    // Aviones y etiquetas
     var sel = null;
     for (i = 0; i < lista.length; i++) {
       a = lista[i];
